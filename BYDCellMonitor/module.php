@@ -6,7 +6,11 @@ require_once __DIR__ . '/../libs/CellMonitorBase.php';
 
 /*
  * BYD Battery-Box Premium (HVM, erprobt an 5 Modulen à 16 Zellen) — liest alle
- * Zellspannungen und den Statusblock direkt von der BCU (ModBus-TCP, Port 8080).
+ * Zellspannungen und den Statusblock direkt von der BCU.
+ *
+ * Die BCU spricht auf Port 8080 ModBus RTU ÜBER TCP (CRC16, kein MBAP-Header) —
+ * verifiziert per sarnau-Referenz (ModbusRtuFramer) und den produktiven
+ * Symcon-Gateways im Modus "Modbus RTU over TCP" (HVM und HVS, 08/2026).
  *
  * Protokoll nach sarnau/BYD-Battery-Box-Infos, verifiziert 25.08.2026:
  * 1. Handshake: INDEX (0x0550, FC06) = BMS-Nummer, CMD (0x0551, FC06) = 0x8100,
@@ -38,12 +42,17 @@ class BYDCellMonitor extends CellMonitorBase
     private const int STATUS_READY     = 0x8801;
     private const int STATUS_BAD_INDEX = 0x4000;
 
-    private const int WINDOW_READS   = 4;
+    private const int WINDOW_READS   = 5;   // sarnau liest 5x; beim HVM ist die 5. Lesung leer, beim HVS (32 Zellen/Modul) nötig
     private const int WINDOW_SIZE    = 65;  // 1 Header-Wort + 64 Datenworte
     private const int OFFSET_SERIAL  = 34;  // Worte 34-45 (12 Worte à 2 ASCII-Zeichen)
     private const int OFFSET_CELLS   = 48;
     private const int OFFSET_TEMPS   = 177; // 4 Worte je Modul, 2 Sensoren je Wort
     private const int TEMPWORDS_PER_MODULE = 4;
+
+    protected function useRtuFraming(): bool
+    {
+        return true;
+    }
 
     public function Create(): void
     {
@@ -147,8 +156,8 @@ class BYDCellMonitor extends CellMonitorBase
             for ($read = 0; $read < self::WINDOW_READS; $read++) {
                 $block = $this->readHoldingRegisters(self::REG_WINDOW, self::WINDOW_SIZE);
                 if ($block === null) {
-                    $this->LogMessage('Blocklesung ' . ($read + 1) . ' fehlgeschlagen - Zellmessung verworfen', KL_WARNING);
-                    return null;
+                    // spätere Lesungen dürfen scheitern, wenn der Puffer schon reicht (HVM braucht nur 4)
+                    break;
                 }
                 array_shift($block); // Header-Wort jeder Lesung verwerfen
                 $words = array_merge($words, $block);
@@ -157,6 +166,14 @@ class BYDCellMonitor extends CellMonitorBase
             return $words;
         });
         if (!is_array($buffer)) {
+            return null;
+        }
+        $benoetigt = max(
+            self::OFFSET_CELLS + $this->moduleCount() * $this->ReadPropertyInteger(self::PROP_CELLSPERMODULE),
+            self::OFFSET_TEMPS + $this->moduleCount() * self::TEMPWORDS_PER_MODULE
+        );
+        if (count($buffer) < $benoetigt) {
+            $this->LogMessage(sprintf('Unvollständiger Messpuffer (%d von %d Worten) - Zellmessung verworfen', count($buffer), $benoetigt), KL_WARNING);
             return null;
         }
 

@@ -7,9 +7,11 @@ Gerätemodule über einer gemeinsamen Basisklasse (`libs/CellMonitorBase.php`).
 ## Architektur
 
 - **Basisklasse** `CellMonitorBase` (abstrakt, `IPSModuleStrict`):
-  ModBus-TCP-Framing (MBAP, FC03/FC06) direkt auf dem Client Socket,
-  Transaktions-ID-Matching im `RxBuffer` (Instanz-ID im High-Byte, damit
-  mehrere Instanzen am selben Socket koexistieren), Semaphore **je Parent**
+  ModBus-Framing (FC03/FC06) direkt auf dem Client Socket, **zwei Framings**:
+  MBAP (Standard, Marstek) und **RTU über TCP** (CRC16; Kindklasse
+  überschreibt `useRtuFraming()` — BYD!). MBAP nutzt Transaktions-ID-Matching
+  im `RxBuffer` (Instanz-ID im High-Byte); RTU hat keine Transaktions-ID,
+  dort sichern Bus-Semaphore + Puffer-Reset die Zuordnung. Semaphore **je Parent**
   (`CellMonitorBus_<ParentID>` — zwei Türme an einer BCU dürfen sich nicht
   überlappen), Variablenverwaltung, Schwellwertprüfung, Push mit Sperrzeiten.
 - **Kindklassen** implementieren `readStatusValues()`, `readCellVoltages()`,
@@ -22,7 +24,17 @@ Gerätemodule über einer gemeinsamen Basisklasse (`libs/CellMonitorBase.php`).
 ## BYD (erprobt am HVM-Turm des nuc, 5 Module à 16 Zellen)
 
 Protokoll nach sarnau/BYD-Battery-Box-Infos, am 25.08.2026 verifiziert:
-- BCU spricht ModBus-TCP auf **Port 8080**, Unit-ID 1.
+- BCU spricht auf **Port 8080 ModBus RTU ÜBER TCP** (CRC16, KEIN MBAP!),
+  Unit-ID 1 — Fund 27.08.2026: erpes 0-Byte-Antwort auf das MBAP-Testskript,
+  sein funktionierender Gateway-Modus „Modbus RTU over TCP", der identische
+  Modus (GatewayMode 2) am produktiven nuc-Gateway und sarnaus
+  `ModbusRtuFramer` bestätigen das übereinstimmend (HVM wie HVS).
+- erpes HVS antwortet auf der Hotspot-IP 192.168.16.254 über eine statische
+  Route (Fritzbox → LAN-IP der BCU); ob die LAN-IP selbst ModBus anbietet,
+  ist offen (sein Test dorthin scheiterte, war aber auch MBAP).
+- HVS: 32 Zellen je Modul; Fensterlesungen 5× (HVM: 4 genügen, die 5. ist
+  leer — Modul liest deshalb tolerant bis 5 und prüft die Mindestlänge).
+  Zell-/Temperatur-Offsets beim HVS unverifiziert — Rohworte von erpe abwarten.
 - Handshake: INDEX (0x0550, FC06) = BMS-Nr., CMD (0x0551, FC06) = 0x8100,
   STATUS (0x0551, FC03) pollen bis 0x8801; 0x4000 = ungültiger Index.
 - Danach **4× denselben 65er-Block ab 0x0558** lesen (wanderndes Fenster);

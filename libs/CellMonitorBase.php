@@ -5,9 +5,13 @@ declare(strict_types=1);
 /*
  * Gemeinsame Basis der Zellmonitor-Module (BYD, Marstek).
  *
- * Spricht ModBus-TCP (MBAP-Header, FC03/FC06) direkt über einen Client Socket —
- * ohne ModBus-Gateway/-Geräte-Instanzen und damit auch ohne die Blockabfrage-
- * Korrektur aus Symcon 9.1 (Forum t/143397).
+ * Spricht ModBus (FC03/FC06) direkt über einen Client Socket — ohne
+ * ModBus-Gateway/-Geräte-Instanzen und damit auch ohne die Blockabfrage-
+ * Korrektur aus Symcon 9.1 (Forum t/143397). Zwei Framings:
+ *  - ModBus TCP (MBAP-Header) — Standard, z. B. Marstek Venus E
+ *  - ModBus RTU über TCP (CRC16) — BYD-BCU auf Port 8080 (Kindklasse
+ *    überschreibt useRtuFraming(); verifiziert per sarnau-Referenz und den
+ *    produktiven Symcon-Gateways im Modus "Modbus RTU over TCP")
  *
  * Die Kindklassen liefern die herstellerspezifischen Teile:
  *  - readStatusValues():  zyklische Kurzabfrage (SOC, Strom, …) → Statusvariablen
@@ -368,11 +372,23 @@ abstract class CellMonitorBase extends IPSModuleStrict
         return ord($response[0]) === 6;
     }
 
-    /**
-     * Eine ModBus-TCP-Transaktion: MBAP-Header bauen, senden, auf die Antwort
-     * mit passender Transaktions-ID warten. Rückgabe: Antwort-PDU ohne Unit-ID.
-     */
+    /** Framing der Kindklasse: false = ModBus TCP (MBAP), true = ModBus RTU über TCP (CRC16). */
+    protected function useRtuFraming(): bool
+    {
+        return false;
+    }
+
+    /** Eine ModBus-Transaktion im Framing der Kindklasse. Rückgabe: Antwort-PDU ohne Unit-ID. */
     private function modbusTransaction(string $pdu): ?string
+    {
+        return $this->useRtuFraming() ? $this->rtuTransaction($pdu) : $this->mbapTransaction($pdu);
+    }
+
+    /**
+     * ModBus-TCP-Transaktion: MBAP-Header bauen, senden, auf die Antwort
+     * mit passender Transaktions-ID warten.
+     */
+    private function mbapTransaction(string $pdu): ?string
     {
         $tid = $this->nextTransactionID();
         $frame = pack('nnnC', $tid, 0, strlen($pdu) + 1, $this->ReadPropertyInteger(self::PROP_UNITID)) . $pdu;
@@ -403,6 +419,75 @@ abstract class CellMonitorBase extends IPSModuleStrict
         }
         $this->SendDebug(__FUNCTION__, 'Timeout - keine Antwort vom Gerät', 0);
         return null;
+    }
+
+    /**
+     * ModBus-RTU-über-TCP-Transaktion: Unit + PDU + CRC16, ohne Transaktions-ID.
+     * Die Zuordnung sichert die Serialisierung über die Bus-Semaphore; der
+     * Empfangspuffer wird vor jedem Request geleert.
+     */
+    private function rtuTransaction(string $pdu): ?string
+    {
+        $unit  = $this->ReadPropertyInteger(self::PROP_UNITID);
+        $frame = chr($unit) . $pdu;
+        $frame .= pack('v', self::crc16($frame));
+
+        $this->SetBuffer('RxBuffer', '');
+        $this->SendDataToParent(json_encode([
+            'DataID' => self::GUID_DATA_TO_PARENT,
+            'Buffer' => mb_convert_encoding($frame, 'UTF-8', 'ISO-8859-1'),
+        ], JSON_THROW_ON_ERROR));
+
+        $deadline = microtime(true) + $this->ReadPropertyInteger(self::PROP_TIMEOUT) / 1000;
+        while (microtime(true) < $deadline) {
+            IPS_Sleep(20);
+            $rx     = base64_decode($this->GetBuffer('RxBuffer'));
+            $length = self::rtuFrameLength($rx);
+            if ($length === null || strlen($rx) < $length) {
+                continue; // Frame noch unvollständig
+            }
+            $frameIn = substr($rx, 0, $length);
+            $this->SetBuffer('RxBuffer', base64_encode(substr($rx, $length)));
+            if (unpack('v', substr($frameIn, -2))[1] !== self::crc16(substr($frameIn, 0, -2))) {
+                $this->SendDebug(__FUNCTION__, 'CRC-Fehler in der Antwort - verworfen', 0);
+                return null;
+            }
+            if (ord($frameIn[0]) !== $unit) {
+                continue; // fremde Unit-ID - überspringen
+            }
+            return substr($frameIn, 1, -2);
+        }
+        $this->SendDebug(__FUNCTION__, 'Timeout - keine Antwort vom Gerät', 0);
+        return null;
+    }
+
+    /** Erwartete Gesamtlänge eines RTU-Antwortframes anhand des Funktionscodes (null = noch unbestimmbar). */
+    private static function rtuFrameLength(string $rx): ?int
+    {
+        if (strlen($rx) < 3) {
+            return null;
+        }
+        $fc = ord($rx[1]);
+        if (($fc & 0x80) !== 0) {
+            return 5; // Unit + FC + Ausnahmecode + CRC
+        }
+        return match ($fc) {
+            3, 4 => 5 + ord($rx[2]), // Unit + FC + Bytezahl + Daten + CRC
+            5, 6, 15, 16 => 8,
+            default => null,
+        };
+    }
+
+    protected static function crc16(string $data): int
+    {
+        $crc = 0xFFFF;
+        for ($i = 0, $len = strlen($data); $i < $len; $i++) {
+            $crc ^= ord($data[$i]);
+            for ($bit = 0; $bit < 8; $bit++) {
+                $crc = ($crc & 1) !== 0 ? (($crc >> 1) ^ 0xA001) : ($crc >> 1);
+            }
+        }
+        return $crc;
     }
 
     private function nextTransactionID(): int

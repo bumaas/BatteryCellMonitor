@@ -9,7 +9,7 @@ Entladeschluss einbrechen — die frühesten Anzeichen für Alterung oder Defekt
 
 | Modul | Gerät | Status |
 |---|---|---|
-| **BYD Battery Cell Monitor** | BYD Battery-Box Premium HVM (BCU, ModBus-TCP Port 8080) | erprobt (HVM, 5 Module à 16 Zellen) |
+| **BYD Battery Cell Monitor** | BYD Battery-Box Premium (BCU, ModBus RTU über TCP, Port 8080) | Protokoll erprobt (HVM, 5 Module à 16 Zellen) |
 | **Marstek Battery Cell Monitor** | Marstek Venus E (v3 direkt per Ethernet, ältere über RS485-Bridge) | vorbereitet, **ungetestet** |
 
 ## Funktionsumfang
@@ -23,9 +23,10 @@ Entladeschluss einbrechen — die frühesten Anzeichen für Alterung oder Defekt
 - Neue Variablen werden auf Wunsch automatisch im Archiv protokolliert
 - Rohdaten der letzten Messung optional als JSON (für eigene Auswertungen)
 
-Die Module sprechen ModBus-TCP **direkt über einen Client Socket** — es werden
+Die Module sprechen ModBus **direkt über einen Client Socket** — es werden
 keine ModBus-Gateway-/Geräte-Instanzen benötigt, und der Blockabfrage-Fix aus
-Symcon 9.1 ist nicht erforderlich.
+Symcon 9.1 ist nicht erforderlich. Das Framing ist je Gerät hinterlegt:
+BYD nutzt ModBus RTU über TCP (CRC16), Marstek ModBus TCP (MBAP).
 
 ## Einrichtung
 
