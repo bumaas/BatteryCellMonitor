@@ -49,11 +49,19 @@ abstract class CellMonitorBase extends IPSModuleStrict
     private const string ATTR_LASTWARN = 'LastWarnPush';
     private const string ATTR_LASTCRIT = 'LastCritPush';
 
+    /**
+     * Verbindet die Instanz mit einem Client Socket (erzeugt ihn bei Bedarf).
+     * Ersetzt das frühere ConnectParent im Create - das wirft auf neueren
+     * Symcon-Versionen "ConnectParent is not available anymore".
+     */
+    public function GetCompatibleParents(): string
+    {
+        return json_encode(['type' => 'connect', 'moduleIDs' => [self::GUID_CLIENT_SOCKET]], JSON_THROW_ON_ERROR);
+    }
+
     public function Create(): void
     {
         parent::Create();
-
-        $this->ConnectParent(self::GUID_CLIENT_SOCKET);
 
         $this->RegisterPropertyInteger(self::PROP_UNITID, 1);
         $this->RegisterPropertyInteger(self::PROP_TIMEOUT, 2000);
