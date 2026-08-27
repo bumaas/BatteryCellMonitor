@@ -1,0 +1,177 @@
+{
+    "elements": [
+        {
+            "type": "NumberSpinner",
+            "name": "BMSIndex",
+            "caption": "BMS index (tower)",
+            "minimum": 1,
+            "maximum": 8
+        },
+        {
+            "type": "NumberSpinner",
+            "name": "ModuleCount",
+            "caption": "Number of modules (0 = automatic)",
+            "minimum": 0,
+            "maximum": 8
+        },
+        {
+            "type": "NumberSpinner",
+            "name": "CellsPerModule",
+            "caption": "Cells per module",
+            "minimum": 1,
+            "maximum": 32
+        },
+        {
+            "type": "NumberSpinner",
+            "name": "UnitID",
+            "caption": "ModBus unit ID",
+            "minimum": 1,
+            "maximum": 255
+        },
+        {
+            "type": "NumberSpinner",
+            "name": "TimeoutMs",
+            "caption": "Timeout",
+            "suffix": "ms",
+            "minimum": 250,
+            "maximum": 10000
+        },
+        {
+            "type": "ExpansionPanel",
+            "caption": "Measurement",
+            "items": [
+                {
+                    "type": "NumberSpinner",
+                    "name": "StatusInterval",
+                    "caption": "Status poll interval (0 = off)",
+                    "suffix": "s",
+                    "minimum": 0
+                },
+                {
+                    "type": "NumberSpinner",
+                    "name": "MeasureInterval",
+                    "caption": "Cell measurement interval (0 = off)",
+                    "suffix": "min",
+                    "minimum": 0
+                },
+                {
+                    "type": "NumberSpinner",
+                    "name": "AutoFullSOC",
+                    "caption": "Measure when SOC at or above",
+                    "suffix": "%",
+                    "minimum": 0,
+                    "maximum": 100
+                },
+                {
+                    "type": "NumberSpinner",
+                    "name": "AutoEmptySOC",
+                    "caption": "Measure when SOC at or below",
+                    "suffix": "%",
+                    "minimum": 0,
+                    "maximum": 100
+                },
+                {
+                    "type": "NumberSpinner",
+                    "name": "AutoCooldown",
+                    "caption": "Minimum gap between SOC-triggered measurements",
+                    "suffix": "s",
+                    "minimum": 0
+                }
+            ]
+        },
+        {
+            "type": "ExpansionPanel",
+            "caption": "Thresholds",
+            "items": [
+                {
+                    "type": "NumberSpinner",
+                    "name": "CellMaxWarn",
+                    "caption": "Cell voltage warning (high)",
+                    "suffix": "mV",
+                    "minimum": 0
+                },
+                {
+                    "type": "NumberSpinner",
+                    "name": "CellMaxCrit",
+                    "caption": "Cell voltage critical (high)",
+                    "suffix": "mV",
+                    "minimum": 0
+                },
+                {
+                    "type": "NumberSpinner",
+                    "name": "CellMinWarn",
+                    "caption": "Cell voltage warning (low)",
+                    "suffix": "mV",
+                    "minimum": 0
+                },
+                {
+                    "type": "NumberSpinner",
+                    "name": "CellMinCrit",
+                    "caption": "Cell voltage critical (low)",
+                    "suffix": "mV",
+                    "minimum": 0
+                },
+                {
+                    "type": "NumberSpinner",
+                    "name": "SpreadWarn",
+                    "caption": "Module spread warning",
+                    "suffix": "mV",
+                    "minimum": 0
+                }
+            ]
+        },
+        {
+            "type": "ExpansionPanel",
+            "caption": "Notifications",
+            "items": [
+                {
+                    "type": "SelectInstance",
+                    "name": "VisuID",
+                    "caption": "Visualization for push notifications (0 = off)"
+                },
+                {
+                    "type": "NumberSpinner",
+                    "name": "WarnCooldown",
+                    "caption": "Warning push gap",
+                    "suffix": "s",
+                    "minimum": 0
+                },
+                {
+                    "type": "NumberSpinner",
+                    "name": "CritCooldown",
+                    "caption": "Critical push gap",
+                    "suffix": "s",
+                    "minimum": 0
+                }
+            ]
+        },
+        {
+            "type": "CheckBox",
+            "name": "AutoLogging",
+            "caption": "Enable archive logging for new variables"
+        },
+        {
+            "type": "CheckBox",
+            "name": "KeepRawData",
+            "caption": "Keep raw data of last measurement"
+        }
+    ],
+    "actions": [
+        {
+            "type": "Button",
+            "caption": "Measure cells now",
+            "onClick": "IPS_RequestAction($id, 'MeasureNow', 0);"
+        },
+        {
+            "type": "Button",
+            "caption": "Read status now",
+            "onClick": "IPS_RequestAction($id, 'TimerStatus', 0);"
+        },
+        {
+            "type": "Button",
+            "caption": "Send test notification",
+            "onClick": "IPS_RequestAction($id, 'TestPush', 0);"
+        }
+    ],
+    "status": []
+}

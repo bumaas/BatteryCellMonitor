@@ -1,0 +1,13 @@
+{
+  "id":            "{83B4FD69-37B1-41D6-8724-EB3953642BA7}",
+  "author":        "bumaas",
+  "name":          "Battery Cell Monitor",
+  "url":           "",
+  "compatibility": {
+    "version": "8.1",
+    "date":    0
+  },
+  "version":       "0.1",
+  "build":         1,
+  "date":          1787954400
+}

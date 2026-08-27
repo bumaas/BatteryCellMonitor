@@ -1,0 +1,15 @@
+{
+  "id": "{41796B4B-7296-4D15-9357-0996361AF41C}",
+  "name": "MarstekCellMonitor",
+  "type": 3,
+  "vendor": "",
+  "aliases": [
+    "Marstek Battery Cell Monitor",
+    "Marstek Zellmonitor"
+  ],
+  "parentRequirements": ["{79827379-F36E-4ADA-8A95-5F8D1DC92FA9}"],
+  "childRequirements": [],
+  "implemented": ["{018EF6B5-AB94-40C6-AA53-46943E824ACF}"],
+  "prefix": "MSTCM",
+  "url": "https://github.com/bumaas/BatteryCellMonitor/blob/master/README.md"
+}

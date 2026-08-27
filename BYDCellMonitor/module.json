@@ -1,0 +1,15 @@
+{
+  "id": "{C816FCC6-3275-4B9E-B866-F950293D9906}",
+  "name": "BYDCellMonitor",
+  "type": 3,
+  "vendor": "",
+  "aliases": [
+    "BYD Battery Cell Monitor",
+    "BYD Zellmonitor"
+  ],
+  "parentRequirements": ["{79827379-F36E-4ADA-8A95-5F8D1DC92FA9}"],
+  "childRequirements": [],
+  "implemented": ["{018EF6B5-AB94-40C6-AA53-46943E824ACF}"],
+  "prefix": "BYDCM",
+  "url": "https://github.com/bumaas/BatteryCellMonitor/blob/master/README.md"
+}
