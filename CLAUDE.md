@@ -89,6 +89,19 @@ Stand 08/2026), Venus E v3:
 - Referenz-Checkliste: `T:\modules\BlindControl` (CI, locale-Check übernommen;
   `tests/check_locale.php` prüft hier zusätzlich `libs/*.php` mit).
 
+## Kompatibilität (geprüft 27.08.2026)
+
+`compatibility.version = 8.1` ist bewusst gewählt:
+- **9.1 ist NICHT nötig** — der RequestRead-Blockabfrage-Fix (t/143397) betrifft
+  nur den Symcon-ModBus-Stack; das Modul framet selbst auf dem Client Socket.
+- **Untergrenze 8.0**: alle genutzten Variablendarstellungen (inkl.
+  `VARIABLE_PRESENTATION_DATE_TIME`) verlangen laut SDK-Doku „Symcon >= 8.0".
+- **8.1 statt 8.0** wegen der PHP-Syntax (typisierte Klassenkonstanten = PHP 8.3,
+  `match`): Für 8.1 ist PHP ≥ 8.3 durch BlindControl belegt (gleiche Syntax,
+  compatibility 8.1, produktiv im Store); für 8.0 ist die PHP-Version unverifiziert.
+- `VISU_PostNotification` ist per `function_exists` + `WFC_PushNotification`-
+  Fallback abgesichert und daher nicht versionskritisch.
+
 ## Konventionen
 
 Version/Build in `library.json` pflegen (Commit-Subject
