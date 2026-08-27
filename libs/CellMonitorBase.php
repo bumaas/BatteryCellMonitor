@@ -150,6 +150,10 @@ abstract class CellMonitorBase extends IPSModuleStrict
     /** Zyklische Kurzabfrage: Statuswerte lesen und SOC-Trigger prüfen. */
     public function PollStatus(): bool
     {
+        if (!$this->HasActiveParent()) {
+            $this->SendDebug(__FUNCTION__, 'Kein aktiver Client Socket - Abfrage übersprungen', 0);
+            return false;
+        }
         $soc = $this->readStatusValues();
         if ($soc === null) {
             return false;
@@ -161,6 +165,10 @@ abstract class CellMonitorBase extends IPSModuleStrict
     /** Vollständige Zellmessung ausführen. */
     public function Measure(): bool
     {
+        if (!$this->HasActiveParent()) {
+            $this->SendDebug(__FUNCTION__, 'Kein aktiver Client Socket - Messung übersprungen', 0);
+            return false;
+        }
         $cellsByModule = $this->readCellVoltages();
         if ($cellsByModule === null) {
             return false;
