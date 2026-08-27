@@ -178,6 +178,8 @@ class BYDCellMonitor extends CellMonitorBase
         }
 
         $this->SetBuffer('LastRawWords', json_encode($buffer));
+        // Rohworte im Debug ausgeben - wichtig zur Offset-Bestimmung bei noch unverifizierten Varianten (HVS)
+        $this->SendDebug('RawWords', implode(' ', $buffer), 0);
         $this->extractSerialNumber($buffer);
 
         $moduleCount    = $this->moduleCount();
