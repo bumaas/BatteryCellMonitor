@@ -89,16 +89,21 @@ Stand 08/2026), Venus E v3:
 - Referenz-Checkliste: `T:\modules\BlindControl` (CI, locale-Check übernommen;
   `tests/check_locale.php` prüft hier zusätzlich `libs/*.php` mit).
 
-## Kompatibilität (geprüft 27.08.2026)
+## Kompatibilität (korrigiert 28.08.2026: 9.0)
 
-`compatibility.version = 8.1` ist bewusst gewählt:
+`compatibility.version = 9.0` — bestimmt durch den **IO-Datenfluss**:
+- **Seit Symcon 9.0 ist der Buffer im Socket-Datenfluss hex-kodiert**
+  (`bin2hex`/`hex2bin`). Die utf8-Kodierung aus der (veralteten!) SDK-Doku wird
+  vom Kernel als Hex-String fehlinterpretiert → Datenmüll auf der Leitung
+  (Alpha-Befund 27./28.08.: gesendet `01 03 05 00 00 14 45 09`, auf der Leitung
+  `00 00 00 0E`; per Testbox-Listener reproduziert und mit build 9 behoben).
+  Referenz: WLED-Commit `de77200` (13.03.2026) — „Hex-Handling",
+  „Library auf Symcon 9.0 angehoben". Burkhard hatte die 9.0-Korrektur richtig
+  in Erinnerung.
 - **9.1 ist NICHT nötig** — der RequestRead-Blockabfrage-Fix (t/143397) betrifft
   nur den Symcon-ModBus-Stack; das Modul framet selbst auf dem Client Socket.
-- **Untergrenze 8.0**: alle genutzten Variablendarstellungen (inkl.
-  `VARIABLE_PRESENTATION_DATE_TIME`) verlangen laut SDK-Doku „Symcon >= 8.0".
-- **8.1 statt 8.0** wegen der PHP-Syntax (typisierte Klassenkonstanten = PHP 8.3,
-  `match`): Für 8.1 ist PHP ≥ 8.3 durch BlindControl belegt (gleiche Syntax,
-  compatibility 8.1, produktiv im Store); für 8.0 ist die PHP-Version unverifiziert.
+- Nachrangig (wäre ohne den Datenfluss die Grenze gewesen): Darstellungen
+  brauchen ≥ 8.0, typisierte Klassenkonstanten PHP ≥ 8.3 (ab 8.1 belegt).
 - `VISU_PostNotification` ist per `function_exists` + `WFC_PushNotification`-
   Fallback abgesichert und daher nicht versionskritisch.
 

@@ -136,5 +136,5 @@ zu ignorieren.
 
 ## Voraussetzungen
 
-- Symcon ab Version 8.1
+- Symcon ab Version 9.0 (der IO-Datenfluss ist seit 9.0 hex-kodiert)
 - Batterie im gleichen Netz erreichbar (keine Portfreigaben ins Internet!)

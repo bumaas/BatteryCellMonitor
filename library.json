@@ -4,10 +4,10 @@
   "name":          "Battery Cell Monitor",
   "url":           "",
   "compatibility": {
-    "version": "8.1",
+    "version": "9.0",
     "date":    0
   },
   "version":       "0.1",
-  "build":         9,
-  "date":          1787853900
+  "build":         10,
+  "date":          1787855400
 }
