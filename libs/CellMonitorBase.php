@@ -142,6 +142,13 @@ abstract class CellMonitorBase extends IPSModuleStrict
             case 'MeasureNow':
                 $this->Measure();
                 break;
+            case 'TxTest':
+                // Diagnose: beliebige Hex-Bytes roh über den Datenfluss senden (z. B. '01030500...')
+                $this->SendDataToParent(json_encode([
+                    'DataID' => self::GUID_DATA_TO_PARENT,
+                    'Buffer' => mb_convert_encoding(hex2bin((string) $value), 'UTF-8', 'ISO-8859-1'),
+                ], JSON_THROW_ON_ERROR));
+                break;
             case 'TestPush':
                 $this->sendPush(
                     $this->Translate('Cell monitor test'),
