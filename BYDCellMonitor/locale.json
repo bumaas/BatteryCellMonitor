@@ -63,7 +63,10 @@
             "Discharged energy (BMU)": "Entladene Energie (BMU)",
             "Cell with max voltage": "Zelle mit höchster Spannung",
             "Cell with min voltage": "Zelle mit niedrigster Spannung",
-            "Module %d temperature min": "Modul %d Temperatur Min"
+            "Module %d temperature min": "Modul %d Temperatur Min",
+            "Temperature spread warning (0 = off)": "Warnung ab Temperaturspreizung (0 = aus)",
+            "Module %1$d: temperature spread %2$d K (%3$d…%4$d °C)": "Modul %1$d: Temperaturspreizung %2$d K (%3$d…%4$d °C)",
+            "K": "K"
         }
     }
 }

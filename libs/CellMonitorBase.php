@@ -38,6 +38,7 @@ abstract class CellMonitorBase extends IPSModuleStrict
     protected const string PROP_CELLMINWARN     = 'CellMinWarn';      // mV
     protected const string PROP_CELLMINCRIT     = 'CellMinCrit';      // mV
     protected const string PROP_SPREADWARN      = 'SpreadWarn';       // mV je Modul
+    protected const string PROP_TEMPSPREADWARN  = 'TempSpreadWarn';   // K je Modul, 0 = aus
     protected const string PROP_WARNCOOLDOWN    = 'WarnCooldown';     // s
     protected const string PROP_CRITCOOLDOWN    = 'CritCooldown';     // s
     protected const string PROP_VISUID          = 'VisuID';           // Kachel-Visualisierung für Push, 0 = aus
@@ -75,6 +76,9 @@ abstract class CellMonitorBase extends IPSModuleStrict
         $this->RegisterPropertyInteger(self::PROP_CELLMINWARN, 2850);
         $this->RegisterPropertyInteger(self::PROP_CELLMINCRIT, 2600);
         $this->RegisterPropertyInteger(self::PROP_SPREADWARN, 250);
+        // Temperaturspreizung je Modul: 2-5 K sind im Betrieb üblich, deutlich mehr deutet
+        // auf ungleiche Kühlung oder einen schlechten Kontakt. Vorgabe bewusst großzügig.
+        $this->RegisterPropertyInteger(self::PROP_TEMPSPREADWARN, 8);
         $this->RegisterPropertyInteger(self::PROP_WARNCOOLDOWN, 86400);
         $this->RegisterPropertyInteger(self::PROP_CRITCOOLDOWN, 14400);
         $this->RegisterPropertyInteger(self::PROP_VISUID, 0);
@@ -259,6 +263,19 @@ abstract class CellMonitorBase extends IPSModuleStrict
                         'PRESENTATION' => VARIABLE_PRESENTATION_VALUE_PRESENTATION, 'SUFFIX' => ' °C', 'DIGITS' => 1,
                     ], 34 + $module * 10);
                     $this->SetValue("Module{$module}TempMin", (float) $tempMin);
+
+                    // Spreizung der Sensoren eines Moduls - ein Ausreißer deutet auf einen
+                    // schlechten Kontakt oder eine schwache Zelle hin.
+                    $tempSpreizung = $this->ReadPropertyInteger(self::PROP_TEMPSPREADWARN);
+                    if ($tempSpreizung > 0 && $tempMax !== null && ($tempMax - $tempMin) >= $tempSpreizung) {
+                        $warnings[] = sprintf(
+                            $this->Translate('Module %1$d: temperature spread %2$d K (%3$d…%4$d °C)'),
+                            $module,
+                            (int) round($tempMax - $tempMin),
+                            (int) round($tempMin),
+                            (int) round($tempMax)
+                        );
+                    }
                 }
             }
 

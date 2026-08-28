@@ -100,6 +100,13 @@
           "caption": "Module spread warning",
           "suffix": "mV",
           "minimum": 0
+        },
+        {
+          "type": "NumberSpinner",
+          "name": "TempSpreadWarn",
+          "caption": "Temperature spread warning (0 = off)",
+          "suffix": "K",
+          "minimum": 0
         }
       ]
     },
