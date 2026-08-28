@@ -169,8 +169,7 @@ abstract class CellMonitorBase extends IPSModuleStrict
     /** Zyklische Kurzabfrage: Statuswerte lesen und SOC-Trigger prüfen. */
     public function PollStatus(): bool
     {
-        if (!$this->HasActiveParent()) {
-            $this->SendDebug(__FUNCTION__, 'Kein aktiver Client Socket - Abfrage übersprungen', 0);
+        if (!$this->parentVerbunden()) {
             return false;
         }
         $soc = $this->readStatusValues();
@@ -184,8 +183,7 @@ abstract class CellMonitorBase extends IPSModuleStrict
     /** Vollständige Zellmessung ausführen. */
     public function Measure(): bool
     {
-        if (!$this->HasActiveParent()) {
-            $this->SendDebug(__FUNCTION__, 'Kein aktiver Client Socket - Messung übersprungen', 0);
+        if (!$this->parentVerbunden()) {
             return false;
         }
         $cellsByModule = $this->readCellVoltages();
@@ -601,6 +599,32 @@ abstract class CellMonitorBase extends IPSModuleStrict
      *                      die Variable im Archiv die Aggregation "Zähler", sodass Tages-
      *                      und Monatswerte als Differenz statt als Mittelwert entstehen.
      */
+    /**
+     * Ist der Client Socket wirklich verbunden? `HasActiveParent()` allein sagt nur, dass ein
+     * aktiver Parent existiert - nach einem Modul-Update oder wenn die Gegenstelle die
+     * Verbindung getrennt hat, steht er aber auf 200/201. Dann wird nicht gesendet: Symcon
+     * verbindet von sich aus neu, und die nächste Abfrage läuft wieder sauber durch.
+     */
+    protected function parentVerbunden(): bool
+    {
+        if (!$this->HasActiveParent()) {
+            $this->SendDebug('Verbindung', 'Kein aktiver Client Socket - Abfrage übersprungen', 0);
+            return false;
+        }
+        $parent = IPS_GetInstance($this->InstanceID)['ConnectionID'];
+        if ($parent <= 0) {
+            return false;
+        }
+        $status = IPS_GetInstance($parent)['InstanceStatus'];
+        if ($status !== IS_ACTIVE) {
+            $this->SendDebug('Verbindung', sprintf(
+                'Client Socket ist nicht verbunden (Status %d) - Abfrage übersprungen', $status
+            ), 0);
+            return false;
+        }
+        return true;
+    }
+
     protected function ensureVariable(string $ident, string $name, int $type, array $presentation, int $position, bool $counter = false): void
     {
         $existed = @$this->GetIDForIdent($ident) !== false;
