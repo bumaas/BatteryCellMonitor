@@ -30,6 +30,7 @@ class BYDCellMonitor extends CellMonitorBase
 
     private const string ATTR_SERIAL          = 'SerialNumber';
     private const string ATTR_DETECTEDMODULES = 'DetectedModules';
+    private const string ATTR_DETECTEDBMS     = 'DetectedBMS';
 
     private const int REG_INDEX       = 0x0550; // 1360
     private const int REG_CMD         = 0x0551; // 1361 (FC06)
@@ -44,7 +45,9 @@ class BYDCellMonitor extends CellMonitorBase
 
     private const int WINDOW_READS   = 5;   // Obergrenze; abgebrochen wird, sobald der Puffer reicht (HVM wie HVS: 4 Lesungen)
     private const int WINDOW_SIZE    = 65;  // 1 Header-Wort + 64 Datenworte
-    private const int OFFSET_SERIAL  = 34;  // Worte 34-45 (12 Worte à 2 ASCII-Zeichen)
+    private const int OFFSET_SERIAL  = 33;  // Worte 33-44 (12 Worte à 2 ASCII-Zeichen); 28.08.2026
+                                            // gegen Be Connect Plus korrigiert - vorher fehlten
+                                            // die ersten beiden Zeichen ("P0…").
     private const int OFFSET_CELLS   = 48;
     private const int OFFSET_TEMPS   = 177; // 2 Sensoren je Wort; Wortzahl je Modul variiert (HVM 4, HVS 6)
     private const int TEMPWORDS_MIN_PER_MODULE = 4;
@@ -63,6 +66,7 @@ class BYDCellMonitor extends CellMonitorBase
         $this->RegisterPropertyInteger(self::PROP_CELLSPERMODULE, 16);
         $this->RegisterAttributeString(self::ATTR_SERIAL, '');
         $this->RegisterAttributeInteger(self::ATTR_DETECTEDMODULES, 0);
+        $this->RegisterAttributeInteger(self::ATTR_DETECTEDBMS, 0);
     }
 
     protected function registerVendorVariables(): void
@@ -82,12 +86,13 @@ class BYDCellMonitor extends CellMonitorBase
         $this->ensureVariable('ErrorBitmask', $this->Translate('Error bitmask'), VARIABLETYPE_INTEGER, [
             'PRESENTATION' => VARIABLE_PRESENTATION_VALUE_PRESENTATION, 'DIGITS' => 0,
         ], 25);
+        // Beides sind seit Werk monoton steigende Zähler - im Archiv entsprechend aggregieren.
         $this->ensureVariable('EnergyCharged', $this->Translate('Charged energy (BMU)'), VARIABLETYPE_FLOAT, [
             'PRESENTATION' => VARIABLE_PRESENTATION_VALUE_PRESENTATION, 'SUFFIX' => ' kWh', 'DIGITS' => 1,
-        ], 26);
+        ], 26, true);
         $this->ensureVariable('EnergyDischarged', $this->Translate('Discharged energy (BMU)'), VARIABLETYPE_FLOAT, [
             'PRESENTATION' => VARIABLE_PRESENTATION_VALUE_PRESENTATION, 'SUFFIX' => ' kWh', 'DIGITS' => 1,
-        ], 27);
+        ], 27, true);
     }
 
     /** Statusblock ab 0x0500 lesen (dauerhaft verfügbar, kein Handshake nötig). */
@@ -103,6 +108,9 @@ class BYDCellMonitor extends CellMonitorBase
             $this->SendDebug(__FUNCTION__, 'Ungültiger SOC-Rohwert: ' . $soc, 0);
             return null;
         }
+        // Dieser Block gilt für die ganze Battery-Box (in Be Connect Plus die Seite
+        // "Information": SOC als Mittel, Strom als Summe aller Türme). Bei mehreren Türmen
+        // werden SOC, SOH, Zellspannungen und Temperaturen unten turmgenau überschrieben.
         $this->SetValue('SOC', $soc);
         $this->SetValue('CellVoltageMax', $words[1] / 100);
         $this->SetValue('CellVoltageMin', $words[2] / 100);
@@ -128,13 +136,70 @@ class BYDCellMonitor extends CellMonitorBase
         if ($this->ReadAttributeInteger(self::ATTR_DETECTEDMODULES) === 0) {
             $this->detectConfiguration();
         }
+
+        // Mehrturm-Anlage: die Werte dieses Turms holen (Be Connect Plus zeigt sie nach dem
+        // Umschalten auf BMS1/BMS2 - sie stehen im Fensterblock hinter dem Handshake).
+        if ($this->bmsCount() > 1) {
+            $eigener = $this->readTowerStatus();
+            if ($eigener !== null) {
+                $soc = $eigener;
+            }
+        }
         return $soc;
     }
 
-    /** Handshake + wanderndes Fenster: alle Zellspannungen lesen. */
-    protected function readCellVoltages(): ?array
+    /**
+     * Statuswerte des eigenen Turms aus dem Fensterblock (eine Lesung genügt).
+     * Offsets am 28.08.2026 gegen Be Connect Plus verifiziert (zwei HVS-Türme):
+     * 0/1 = Max/Min-Zellspannung mV, 3/4 = Temperatur max/min, 20 = Batteriespannung,
+     * 23 = Ausgangsspannung (beide x 0,1 V), 24 = SOC x 0,1, 25 = SOH.
+     */
+    private function readTowerStatus(): ?int
     {
-        $buffer = $this->withBusLock(function (): ?array {
+        $buffer = $this->readWindow(26);
+        if (!is_array($buffer) || count($buffer) < 26) {
+            return null;
+        }
+        $soc = (int) round($buffer[24] / 10);
+        if ($soc < 0 || $soc > 100) {
+            $this->SendDebug(__FUNCTION__, 'Turm-SOC unplausibel: ' . $buffer[24], 0);
+            return null;
+        }
+        $this->SetValue('SOC', $soc);
+        $this->SetValue('SOH', $buffer[25]);
+        $this->SetValue('CellVoltageMax', $buffer[0] / 1000);
+        $this->SetValue('CellVoltageMin', $buffer[1] / 1000);
+        $this->SetValue('CellDelta', $buffer[0] - $buffer[1]);
+        $this->SetValue('CellTempMax', self::toSigned16($buffer[3]));
+        $this->SetValue('CellTempMin', self::toSigned16($buffer[4]));
+        $this->SetValue('BatteryVoltage', $buffer[20] / 10);
+        $this->SendDebug(__FUNCTION__, sprintf(
+            'Turm %d: SOC %d %%, SOH %d, Zellen %d-%d mV, %.1f V',
+            $this->ReadPropertyInteger(self::PROP_BMSINDEX),
+            $soc,
+            $buffer[25],
+            $buffer[1],
+            $buffer[0],
+            $buffer[20] / 10
+        ), 0);
+        return $soc;
+    }
+
+    /** BMS-Anzahl der Box (Config Word), Vorgabe 1. */
+    private function bmsCount(): int
+    {
+        $erkannt = $this->ReadAttributeInteger(self::ATTR_DETECTEDBMS);
+        return $erkannt > 0 ? $erkannt : 1;
+    }
+
+    /**
+     * Handshake auf den eigenen BMS-Index, dann das wandernde Fenster lesen, bis mindestens
+     * $wunsch Worte beisammen sind. Für die Statuswerte genügen 26 Worte (eine Lesung),
+     * für die Zellmessung braucht es den ganzen Puffer.
+     */
+    private function readWindow(int $wunsch): ?array
+    {
+        return $this->withBusLock(function () use ($wunsch): ?array {
             if (!$this->writeSingleRegister(self::REG_INDEX, $this->ReadPropertyInteger(self::PROP_BMSINDEX))) {
                 return null;
             }
@@ -158,16 +223,10 @@ class BYDCellMonitor extends CellMonitorBase
                 }
             }
             if (!$ready) {
-                $this->LogMessage('Handshake-Timeout - Zellmessung abgebrochen', KL_WARNING);
+                $this->LogMessage('Handshake-Timeout - Abfrage abgebrochen', KL_WARNING);
                 return null;
             }
 
-            // Soviel Puffer, dass Zellen und Temperaturzone sicher enthalten sind; mehr Lesungen
-            // quittiert die BMU je nach Turmgröße mit einer Ausnahme (HVM leere Antwort, HVS Code 4).
-            $wunsch = self::OFFSET_TEMPS + $this->moduleCount() * max(
-                self::TEMPWORDS_MIN_PER_MODULE,
-                (int) ceil($this->ReadPropertyInteger(self::PROP_CELLSPERMODULE) / 4)
-            );
             $words = [];
             for ($read = 0; $read < self::WINDOW_READS; $read++) {
                 $block = $this->readHoldingRegisters(self::REG_WINDOW, self::WINDOW_SIZE);
@@ -184,6 +243,17 @@ class BYDCellMonitor extends CellMonitorBase
             }
             return $words;
         });
+    }
+
+    /** Handshake + wanderndes Fenster: alle Zellspannungen lesen. */
+    protected function readCellVoltages(): ?array
+    {
+        // Soviel Puffer, dass Zellen und Temperaturzone sicher enthalten sind; mehr Lesungen
+        // quittiert die BMU je nach Turmgröße mit einer Ausnahme (HVM leere Antwort, HVS Code 4).
+        $buffer = $this->readWindow(self::OFFSET_TEMPS + $this->moduleCount() * max(
+            self::TEMPWORDS_MIN_PER_MODULE,
+            (int) ceil($this->ReadPropertyInteger(self::PROP_CELLSPERMODULE) / 4)
+        ));
         if (!is_array($buffer)) {
             return null;
         }
@@ -270,6 +340,10 @@ class BYDCellMonitor extends CellMonitorBase
             return;
         }
         $modules = $words[2] & 0x0F;
+        $bms     = ($words[2] >> 4) & 0x0F;
+        if ($bms > 0) {
+            $this->WriteAttributeInteger(self::ATTR_DETECTEDBMS, $bms);
+        }
         if ($modules > 0) {
             $this->WriteAttributeInteger(self::ATTR_DETECTEDMODULES, $modules);
             $this->SendDebug(__FUNCTION__, sprintf(
@@ -293,6 +367,8 @@ class BYDCellMonitor extends CellMonitorBase
             $serial .= chr($word >> 8) . chr($word & 0xFF);
         }
         $serial = trim(preg_replace('/[^\x20-\x7E]/', '', $serial));
+        // Die BMU füllt das Feld rechts mit 'x' auf (Be Connect zeigt die Nummer ohne sie).
+        $serial = rtrim($serial, 'x');
         if ($serial !== '') {
             $this->WriteAttributeString(self::ATTR_SERIAL, $serial);
             $this->SetSummary($serial);

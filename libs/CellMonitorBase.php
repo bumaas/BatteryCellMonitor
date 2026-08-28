@@ -213,9 +213,10 @@ abstract class CellMonitorBase extends IPSModuleStrict
 
     protected function processCellVoltages(array $cellsByModule, array $tempsByModule): void
     {
-        $allCells  = [];
-        $warnings  = [];
-        $criticals = [];
+        $allCells          = [];
+        $nummerierteZellen = [];   // fortlaufende Zellnummer => mV, für die Angabe "3322 mV (Zelle 112)"
+        $warnings          = [];
+        $criticals         = [];
         $maxWarn   = $this->ReadPropertyInteger(self::PROP_CELLMAXWARN);
         $maxCrit   = $this->ReadPropertyInteger(self::PROP_CELLMAXCRIT);
         $minWarn   = $this->ReadPropertyInteger(self::PROP_CELLMINWARN);
@@ -249,7 +250,8 @@ abstract class CellMonitorBase extends IPSModuleStrict
             }
 
             foreach ($cells as $i => $mv) {
-                $cellNo = ($module - 1) * $cellsPerModule + $i + 1;
+                $cellNo             = ($module - 1) * $cellsPerModule + $i + 1;
+                $nummerierteZellen[$cellNo] = $mv;
                 if ($mv >= $maxCrit) {
                     $criticals[] = sprintf($this->Translate('Cell %1$d (module %2$d): %3$d mV above protection limit'), $cellNo, $module, $mv);
                 } elseif ($mv >= $maxWarn) {
@@ -273,6 +275,18 @@ abstract class CellMonitorBase extends IPSModuleStrict
         $this->SetValue('CellVoltageMax', max($allCells) / 1000);
         $this->SetValue('CellVoltageMin', min($allCells) / 1000);
         $this->SetValue('CellDelta', max($allCells) - min($allCells));
+
+        // Welche Zelle ist die höchste, welche die niedrigste? (Be Connect zeigt das als "-#112")
+        if ($nummerierteZellen !== []) {
+            $this->ensureVariable('CellMaxNumber', $this->Translate('Cell with max voltage'), VARIABLETYPE_INTEGER, [
+                'PRESENTATION' => VARIABLE_PRESENTATION_VALUE_PRESENTATION, 'DIGITS' => 0,
+            ], 16);
+            $this->ensureVariable('CellMinNumber', $this->Translate('Cell with min voltage'), VARIABLETYPE_INTEGER, [
+                'PRESENTATION' => VARIABLE_PRESENTATION_VALUE_PRESENTATION, 'DIGITS' => 0,
+            ], 17);
+            $this->SetValue('CellMaxNumber', (int) array_search(max($nummerierteZellen), $nummerierteZellen, true));
+            $this->SetValue('CellMinNumber', (int) array_search(min($nummerierteZellen), $nummerierteZellen, true));
+        }
         $this->SetValue('LastMeasurement', time());
         $this->SetValue('SOCAtMeasurement', (int) $soc);
         $this->SetValue('CurrentAtMeasurement', (float) $current);
@@ -552,7 +566,12 @@ abstract class CellMonitorBase extends IPSModuleStrict
     // -- Variablenverwaltung -------------------------------------------------
 
     /** Variable anlegen, falls neu; neue numerische Variablen optional im Archiv protokollieren. */
-    protected function ensureVariable(string $ident, string $name, int $type, array $presentation, int $position): void
+    /**
+     * @param bool $counter Monoton steigender Zähler (z. B. Energie ab Werk) - dann bekommt
+     *                      die Variable im Archiv die Aggregation "Zähler", sodass Tages-
+     *                      und Monatswerte als Differenz statt als Mittelwert entstehen.
+     */
+    protected function ensureVariable(string $ident, string $name, int $type, array $presentation, int $position, bool $counter = false): void
     {
         $existed = @$this->GetIDForIdent($ident) !== false;
         switch ($type) {
@@ -571,7 +590,11 @@ abstract class CellMonitorBase extends IPSModuleStrict
         if (!$existed && $type !== VARIABLETYPE_STRING && $this->ReadPropertyBoolean(self::PROP_AUTOLOG)) {
             $archiveIDs = IPS_GetInstanceListByModuleID(self::GUID_ARCHIVE);
             if ($archiveIDs !== []) {
-                AC_SetLoggingStatus($archiveIDs[0], $this->GetIDForIdent($ident), true);
+                $varID = $this->GetIDForIdent($ident);
+                AC_SetLoggingStatus($archiveIDs[0], $varID, true);
+                if ($counter) {
+                    AC_SetAggregationType($archiveIDs[0], $varID, 1);
+                }
                 IPS_ApplyChanges($archiveIDs[0]);
             }
         }

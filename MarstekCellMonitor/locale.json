@@ -59,7 +59,9 @@
             "Min cell temperature": "Min. Zelltemperatur",
             "Charge cycles": "Ladezyklen",
             "Alarm bits": "Alarm-Bits",
-            "Fault bits": "Fehler-Bits"
+            "Fault bits": "Fehler-Bits",
+            "Cell with max voltage": "Zelle mit höchster Spannung",
+            "Cell with min voltage": "Zelle mit niedrigster Spannung"
         }
     }
 }

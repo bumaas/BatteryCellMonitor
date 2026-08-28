@@ -60,7 +60,9 @@
             "Min cell temperature": "Min. Zelltemperatur",
             "Error bitmask": "Fehler-Bitmask",
             "Charged energy (BMU)": "Geladene Energie (BMU)",
-            "Discharged energy (BMU)": "Entladene Energie (BMU)"
+            "Discharged energy (BMU)": "Entladene Energie (BMU)",
+            "Cell with max voltage": "Zelle mit höchster Spannung",
+            "Cell with min voltage": "Zelle mit niedrigster Spannung"
         }
     }
 }
