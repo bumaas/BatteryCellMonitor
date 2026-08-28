@@ -54,7 +54,11 @@ https://github.com/bumaas/BatteryCellMonitor.git
    - Marstek Venus E v3: IP des Geräts, **Port 5200** (der WLAN-/LAN-ModBus des
      Geräts; auf Port 502 antwortet zwar auch ein ModBus-Dienst, dort sind die
      Register aber nicht erreichbar). Ältere Venus E über eine
-     RS485-zu-Ethernet-Bridge im ModBus-TCP-Modus (z. B. Elfin EW11), dort Port 502
+     RS485-zu-Ethernet-Bridge im ModBus-TCP-Modus (z. B. Elfin EW11), dort Port 502.
+     **Statusintervall auf höchstens 25 s stellen:** Die Venus trennt die Verbindung
+     nach 30 s ohne Verkehr, und Symcon verbindet dann bei jeder Abfrage neu — das
+     füllt das Logbuch mit „Wiederverbinden erfolgreich". Mit einem Intervall unter
+     dem Timeout bleibt die Verbindung stehen.
 3. Bei BYD den **BMS-Index** wählen (Turm 1, 2, …). Für einen zweiten Turm eine
    zweite Instanz **am selben Client Socket** anlegen (BMS-Index 2) — die
    Zugriffe werden automatisch serialisiert.

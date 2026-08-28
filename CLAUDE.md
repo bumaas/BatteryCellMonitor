@@ -117,6 +117,11 @@ Stand 08/2026), Venus E v3:
   Leistung 30001 signed; Temperaturen 35000/35010/35011 ×0,1
 - Alarm 36000 (2 Register), Fault 36100 (4 Register) — Bedeutung der Bits
   noch nicht dokumentiert, werden als Hex-String ausgegeben
+- **Idle-Timeout 30 s** (gemessen 28.08.2026 an der Venus in Neustadt: Verbindung offen
+  gehalten, Gegenstelle trennt nach exakt 30 s ohne Verkehr). Ein Statusintervall über
+  30 s bedeutet deshalb: Jede Abfrage trifft auf eine tote Verbindung, Symcon verbindet
+  neu und protokolliert „Wiederverbinden erfolgreich" — im Betrieb alle ~90 s eine Zeile.
+  Abhilfe ist nicht, selbst zu trennen, sondern **unter dem Timeout zu bleiben** (25 s).
 - Venus E **v3 spricht ModBus direkt über das Netz** (Port 5200, s. o.);
   v1/v2 brauchen eine RS485-Bridge (Elfin EW11, USR DR134) im ModBus-TCP-Modus
   (dort dann Port 502). **v1/v2 haben
