@@ -75,7 +75,17 @@ Protokoll nach sarnau/BYD-Battery-Box-Infos, am 25.08.2026 verifiziert:
   selben Client Socket liefern beide sauber; die Bus-Semaphore hält sie
   auseinander.
 
-## Marstek (Registerkarte verifiziert, Modul selbst noch ungetestet)
+## Marstek (am Gerät erprobt, 28.08.2026)
+
+**Erster echter Lauf bestanden** (build 14, Instanz gegen die Venus E 3.0 in Neustadt):
+`PollStatus` 2,3 s (viele Einzelregister — Bündeln wäre eine Optimierung), `Measure`
+0,16 s. Alle Werte decken sich mit der unabhängigen Erfassung derselben Batterie —
+SOC 40 vs. 40,4 %, 53,05 vs. 53,04 V, Zellen 3,318/3,314 vs. 3,316/3,313 V, Delta
+4 vs. 5 mV, Temperaturen 30,6/28,4 vs. 30,7/28,5 °C, Innentemperatur 39,9 vs. 39,8 °C,
+Zyklen 87 = 87. **Abweichung nur beim Batteriestrom** (6,9 A gegen 0,6 A): Aus
+305–332 W bei 53 V folgen rund 6 A — das Modul liegt richtig, die dortige Erfassung
+skaliert Register 30101 um den Faktor 10 zu klein.
+
 
 **Port 5200, nicht 502** (Fund 28.08.2026 an der Venus E 3.0 in Neustadt,
 192.168.10.187, gelesen über Tailscale): Auf 502 antwortet zwar ebenfalls ein
