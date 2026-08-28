@@ -48,7 +48,8 @@ class BYDCellMonitor extends CellMonitorBase
     private const int OFFSET_CELLS   = 48;
     private const int OFFSET_TEMPS   = 177; // 2 Sensoren je Wort; Wortzahl je Modul variiert (HVM 4, HVS 6)
     private const int TEMPWORDS_MIN_PER_MODULE = 4;
-    private const int TEMP_PLAUSIBEL_MAX       = 80; // °C je Sensorbyte - trennt Temperaturen von Folgedaten
+    private const int TEMP_PLAUSIBEL_MAX       = 80;    // °C je Sensorbyte - trennt Temperaturen von Folgedaten
+    private const int CYCLES_PLAUSIBEL_MAX     = 20000; // darüber ist Wort 17 sicher keine Zyklenzahl
 
     protected function useRtuFraming(): bool
     {
@@ -82,9 +83,7 @@ class BYDCellMonitor extends CellMonitorBase
         $this->ensureVariable('ErrorBitmask', $this->Translate('Error bitmask'), VARIABLETYPE_INTEGER, [
             'PRESENTATION' => VARIABLE_PRESENTATION_VALUE_PRESENTATION, 'DIGITS' => 0,
         ], 25);
-        $this->ensureVariable('ChargeCycles', $this->Translate('Charge cycles'), VARIABLETYPE_INTEGER, [
-            'PRESENTATION' => VARIABLE_PRESENTATION_VALUE_PRESENTATION, 'DIGITS' => 0,
-        ], 26);
+        // Ladezyklen werden bewusst NICHT vorab angelegt - siehe readStatusValues().
     }
 
     /** Statusblock ab 0x0500 lesen (dauerhaft verfügbar, kein Handshake nötig). */
@@ -110,7 +109,16 @@ class BYDCellMonitor extends CellMonitorBase
         $this->SetValue('CellTempMax', self::toSigned16($words[6]));
         $this->SetValue('CellTempMin', self::toSigned16($words[7]));
         $this->SetValue('ErrorBitmask', $words[13]);
-        $this->SetValue('ChargeCycles', $words[17]);
+
+        // Wort 17 ist laut sarnau die Zahl der Ladezyklen. Auf den bisher erprobten
+        // BMU-Firmwares steht dort etwas anderes (HVM 50304, HVS 46921 bei beiden Türmen
+        // gleich) - die Variable entsteht deshalb nur, wenn der Wert überhaupt plausibel ist.
+        if ($words[17] > 0 && $words[17] <= self::CYCLES_PLAUSIBEL_MAX) {
+            $this->ensureVariable('ChargeCycles', $this->Translate('Charge cycles'), VARIABLETYPE_INTEGER, [
+                'PRESENTATION' => VARIABLE_PRESENTATION_VALUE_PRESENTATION, 'DIGITS' => 0,
+            ], 26);
+            $this->SetValue('ChargeCycles', $words[17]);
+        }
 
         if ($words[13] !== 0) {
             $this->LogMessage(sprintf('BMU meldet Fehler-Bitmask 0x%X', $words[13]), KL_ERROR);

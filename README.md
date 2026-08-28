@@ -119,6 +119,12 @@ zu ignorieren.
   im Heimnetz) oder einen zweiten Abnehmer am selben Socket.
 - **„BMS-Index … ist ungültig":** Die BMU kennt den gewählten Turm nicht
   (STATUS-Antwort `0x4000`) — Index prüfen.
+- **Max. = Min. Zellspannung, Zell-Delta 0 mV:** kein Fehler. Diese beiden Werte
+  stammen aus dem Statusblock und haben dort nur 10-mV-Auflösung; bei einem engen
+  Turm fallen sie zusammen. Die feinen Werte je Modul entstehen bei einer Zellmessung.
+- **Keine Variable „Ladezyklen":** Das dafür vorgesehene Register liefert auf den
+  bisher erprobten BYD-Firmwares keinen sinnvollen Wert; die Variable wird deshalb
+  nur angelegt, wenn der Zähler plausibel ist.
 - **Unplausible Zellwerte** (nicht um 3300 mV): Beim BYD die Debug-Zeile
   **„RawWords"** einer Messung sichern und im Forum posten — daraus lassen sich
   die Wort-Offsets abweichender Varianten (z. B. HVS) bestimmen.

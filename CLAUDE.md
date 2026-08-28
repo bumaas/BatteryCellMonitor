@@ -55,6 +55,14 @@ Protokoll nach sarnau/BYD-Battery-Box-Infos, am 25.08.2026 verifiziert:
 - Infoblock Register 14–17: BMS-Version, Config Word (Bits 0–3 Modulzahl,
   4–7 BMS-Anzahl), Batterietyp.
 - **FC16-Kombi-Writes lehnt die BMU ab** — nur einzelne FC06.
+- **Zyklenzähler (Wort 17/19) sind unbrauchbar** (28.08.2026 an zwei Anlagen belegt):
+  nuc/HVM meldet Lade- 50304 und Entladezyklen 32835, erpes HVS bei **beiden**
+  Türmen identisch 46921. sarnaus Deutung (0x0511 Charge Cycles, 0x0513 Discharge
+  Cycles) trifft auf diese BMU-Firmwares nicht zu. Das Modul legt die Variable
+  seit build 13 nur an, wenn der Wert plausibel ist (≤ 20.000).
+- **Max/Min-Zellspannung im Statusblock hat nur 10-mV-Auflösung** (Wort 1/2 × 0,01 V).
+  Bei engem Turm stehen dort Max = Min und Delta 0 — kein Fehler; die feinen Werte
+  (1 mV) kommen aus der Zellmessung.
 - **BMS-Index 2 (zweiter Turm) erprobt** (erpe, 28.08.2026): zwei Instanzen am
   selben Client Socket liefern beide sauber; die Bus-Semaphore hält sie
   auseinander.
