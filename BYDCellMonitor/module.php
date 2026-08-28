@@ -42,12 +42,13 @@ class BYDCellMonitor extends CellMonitorBase
     private const int STATUS_READY     = 0x8801;
     private const int STATUS_BAD_INDEX = 0x4000;
 
-    private const int WINDOW_READS   = 5;   // sarnau liest 5x; beim HVM ist die 5. Lesung leer, beim HVS (32 Zellen/Modul) nötig
+    private const int WINDOW_READS   = 5;   // Obergrenze; abgebrochen wird, sobald der Puffer reicht (HVM wie HVS: 4 Lesungen)
     private const int WINDOW_SIZE    = 65;  // 1 Header-Wort + 64 Datenworte
     private const int OFFSET_SERIAL  = 34;  // Worte 34-45 (12 Worte à 2 ASCII-Zeichen)
     private const int OFFSET_CELLS   = 48;
-    private const int OFFSET_TEMPS   = 177; // 4 Worte je Modul, 2 Sensoren je Wort
-    private const int TEMPWORDS_PER_MODULE = 4;
+    private const int OFFSET_TEMPS   = 177; // 2 Sensoren je Wort; Wortzahl je Modul variiert (HVM 4, HVS 6)
+    private const int TEMPWORDS_MIN_PER_MODULE = 4;
+    private const int TEMP_PLAUSIBEL_MAX       = 80; // °C je Sensorbyte - trennt Temperaturen von Folgedaten
 
     protected function useRtuFraming(): bool
     {
@@ -152,15 +153,24 @@ class BYDCellMonitor extends CellMonitorBase
                 return null;
             }
 
+            // Soviel Puffer, dass Zellen und Temperaturzone sicher enthalten sind; mehr Lesungen
+            // quittiert die BMU je nach Turmgröße mit einer Ausnahme (HVM leere Antwort, HVS Code 4).
+            $wunsch = self::OFFSET_TEMPS + $this->moduleCount() * max(
+                self::TEMPWORDS_MIN_PER_MODULE,
+                (int) ceil($this->ReadPropertyInteger(self::PROP_CELLSPERMODULE) / 4)
+            );
             $words = [];
             for ($read = 0; $read < self::WINDOW_READS; $read++) {
                 $block = $this->readHoldingRegisters(self::REG_WINDOW, self::WINDOW_SIZE);
                 if ($block === null) {
-                    // spätere Lesungen dürfen scheitern, wenn der Puffer schon reicht (HVM braucht nur 4)
+                    // spätere Lesungen dürfen scheitern, wenn der Puffer schon reicht
                     break;
                 }
                 array_shift($block); // Header-Wort jeder Lesung verwerfen
                 $words = array_merge($words, $block);
+                if (count($words) >= $wunsch) {
+                    break;
+                }
                 IPS_Sleep(50);
             }
             return $words;
@@ -168,10 +178,7 @@ class BYDCellMonitor extends CellMonitorBase
         if (!is_array($buffer)) {
             return null;
         }
-        $benoetigt = max(
-            self::OFFSET_CELLS + $this->moduleCount() * $this->ReadPropertyInteger(self::PROP_CELLSPERMODULE),
-            self::OFFSET_TEMPS + $this->moduleCount() * self::TEMPWORDS_PER_MODULE
-        );
+        $benoetigt = self::OFFSET_CELLS + $this->moduleCount() * $this->ReadPropertyInteger(self::PROP_CELLSPERMODULE);
         if (count($buffer) < $benoetigt) {
             $this->LogMessage(sprintf('Unvollständiger Messpuffer (%d von %d Worten) - Zellmessung verworfen', count($buffer), $benoetigt), KL_WARNING);
             return null;
@@ -197,15 +204,43 @@ class BYDCellMonitor extends CellMonitorBase
         if (!is_array($buffer) || count($buffer) < self::OFFSET_TEMPS) {
             return [];
         }
-        $temps = [];
-        for ($m = 0; $m < $this->moduleCount(); $m++) {
+        $moduleCount = $this->moduleCount();
+        $proModul    = $this->tempWordsPerModule($buffer, $moduleCount);
+        $temps       = [];
+        for ($m = 0; $m < $moduleCount; $m++) {
             $tMax = 0;
-            foreach (array_slice($buffer, self::OFFSET_TEMPS + $m * self::TEMPWORDS_PER_MODULE, self::TEMPWORDS_PER_MODULE) as $word) {
+            foreach (array_slice($buffer, self::OFFSET_TEMPS + $m * $proModul, $proModul) as $word) {
                 $tMax = max($tMax, $word >> 8, $word & 0xFF);
             }
             $temps[$m + 1] = $tMax;
         }
         return $temps;
+    }
+
+    /**
+     * Wie viele Worte je Modul die Temperaturzone belegt - beim HVM 4 (8 Sensoren), beim HVS 6.
+     * Statt einer festen Annahme wird die tatsächlich belegte Zone vermessen: ab OFFSET_TEMPS
+     * zählen nur Worte, deren beide Sensorbytes eine plausible Temperatur tragen.
+     */
+    private function tempWordsPerModule(array $buffer, int $moduleCount): int
+    {
+        if ($moduleCount < 1) {
+            return self::TEMPWORDS_MIN_PER_MODULE;
+        }
+        $belegt = 0;
+        for ($i = self::OFFSET_TEMPS; $i < count($buffer); $i++) {
+            $word = (int) $buffer[$i];
+            if ($word === 0 || ($word >> 8) > self::TEMP_PLAUSIBEL_MAX || ($word & 0xFF) > self::TEMP_PLAUSIBEL_MAX) {
+                break;
+            }
+            $belegt++;
+        }
+        // Deckel: ein Modul hat höchstens halb so viele Sensoren wie Zellen (HVM 8, HVS 12)
+        $deckel = max(
+            self::TEMPWORDS_MIN_PER_MODULE,
+            (int) ceil($this->ReadPropertyInteger(self::PROP_CELLSPERMODULE) / 4)
+        );
+        return min($deckel, max(self::TEMPWORDS_MIN_PER_MODULE, (int) ceil($belegt / $moduleCount)));
     }
 
     private function moduleCount(): int

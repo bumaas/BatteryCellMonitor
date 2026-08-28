@@ -9,7 +9,7 @@ Entladeschluss einbrechen — die frühesten Anzeichen für Alterung oder Defekt
 
 | Modul | Gerät | Status |
 |---|---|---|
-| **BYD Battery Cell Monitor** | BYD Battery-Box Premium (BCU, ModBus RTU über TCP, Port 8080) | Protokoll erprobt (HVM, 5 Module à 16 Zellen); Modul im Alpha-Test |
+| **BYD Battery Cell Monitor** | BYD Battery-Box Premium (BCU, ModBus RTU über TCP, Port 8080) | erprobt an HVM (5 Module à 16 Zellen) und HVS (2 Türme à 4 Module à 32 Zellen); Alpha |
 | **Marstek Battery Cell Monitor** | Marstek Venus E (v3 direkt per Ethernet, ältere über RS485-Bridge) | vorbereitet, **ungetestet** |
 
 > **Alpha-Stand:** Die Bibliothek ist neu. Das BYD-Ausleseverfahren läuft seit

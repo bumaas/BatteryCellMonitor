@@ -32,9 +32,17 @@ Protokoll nach sarnau/BYD-Battery-Box-Infos, am 25.08.2026 verifiziert:
 - erpes HVS antwortet auf der Hotspot-IP 192.168.16.254 über eine statische
   Route (Fritzbox → LAN-IP der BCU); ob die LAN-IP selbst ModBus anbietet,
   ist offen (sein Test dorthin scheiterte, war aber auch MBAP).
-- HVS: 32 Zellen je Modul; Fensterlesungen 5× (HVM: 4 genügen, die 5. ist
-  leer — Modul liest deshalb tolerant bis 5 und prüft die Mindestlänge).
-  Zell-/Temperatur-Offsets beim HVS unverifiziert — Rohworte von erpe abwarten.
+- **HVS am 28.08.2026 an erpes Anlage verifiziert** (2 Türme à 4 Module,
+  32 Zellen je Modul, 128 Zellen): Zell-Offset 48 gilt unverändert, die Zellen
+  laufen dort bis Wort 175. **Die Temperaturzone ist größer als beim HVM** —
+  Worte 177–200 belegt (24 Worte = 48 Sensoren = **12 je Modul**, HVM: 4 Worte
+  = 8 Sensoren). Gegenprobe: Max/Min der Zone (27/24 °C) decken sich mit den
+  Worten 6/7 des Statusblocks. Das Modul vermisst die Zone seit build 11 selbst
+  (`tempWordsPerModule()`, gedeckelt auf `ceil(Zellen je Modul / 4)`), statt
+  4 Worte je Modul anzunehmen.
+- **Fensterlesungen: 4 genügen bei beiden Bauformen.** Die 5. quittiert der HVM
+  mit leerer Antwort, der HVS mit ModBus-Ausnahme 4 — seit build 11 bricht die
+  Schleife ab, sobald der Puffer Zellen und Temperaturzone trägt.
 - Handshake: INDEX (0x0550, FC06) = BMS-Nr., CMD (0x0551, FC06) = 0x8100,
   STATUS (0x0551, FC03) pollen bis 0x8801; 0x4000 = ungültiger Index.
 - Danach **4× denselben 65er-Block ab 0x0558** lesen (wanderndes Fenster);
@@ -47,8 +55,9 @@ Protokoll nach sarnau/BYD-Battery-Box-Infos, am 25.08.2026 verifiziert:
 - Infoblock Register 14–17: BMS-Version, Config Word (Bits 0–3 Modulzahl,
   4–7 BMS-Anzahl), Batterietyp.
 - **FC16-Kombi-Writes lehnt die BMU ab** — nur einzelne FC06.
-- Offene Frage: BMS-Index 2 (zweiter Turm) ist ungetestet — Rainer (erpe,
-  Forum `t/144307`) hat zwei Türme und wollte berichten.
+- **BMS-Index 2 (zweiter Turm) erprobt** (erpe, 28.08.2026): zwei Instanzen am
+  selben Client Socket liefern beide sauber; die Bus-Semaphore hält sie
+  auseinander.
 
 ## Marstek (vorbereitet, UNGETESTET — kein Gerät mit ModBus-Zugang vorhanden)
 
