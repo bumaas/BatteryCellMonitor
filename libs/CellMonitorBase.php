@@ -146,7 +146,7 @@ abstract class CellMonitorBase extends IPSModuleStrict
                 // Diagnose: beliebige Hex-Bytes roh über den Datenfluss senden (z. B. '01030500...')
                 $this->SendDataToParent(json_encode([
                     'DataID' => self::GUID_DATA_TO_PARENT,
-                    'Buffer' => mb_convert_encoding(hex2bin((string) $value), 'UTF-8', 'ISO-8859-1'),
+                    'Buffer' => (string) $value, // kommt bereits als Hex an
                 ], JSON_THROW_ON_ERROR));
                 break;
             case 'TestPush':
@@ -350,8 +350,12 @@ abstract class CellMonitorBase extends IPSModuleStrict
 
     public function ReceiveData(string $JSONString): string
     {
-        $data  = json_decode($JSONString, true, 512, JSON_THROW_ON_ERROR);
-        $chunk = mb_convert_encoding($data['Buffer'], 'ISO-8859-1', 'UTF-8');
+        $data = json_decode($JSONString, true, 512, JSON_THROW_ON_ERROR);
+        // IO-Datenfluss liefert den Buffer hex-kodiert (neuere Kernel); Fallback: Rohdaten
+        $chunk = @hex2bin((string) $data['Buffer']);
+        if ($chunk === false) {
+            $chunk = (string) $data['Buffer'];
+        }
         $this->SetBuffer('RxBuffer', base64_encode(base64_decode($this->GetBuffer('RxBuffer')) . $chunk));
         return '';
     }
@@ -419,7 +423,7 @@ abstract class CellMonitorBase extends IPSModuleStrict
         $this->SetBuffer('RxBuffer', '');
         $this->SendDataToParent(json_encode([
             'DataID' => self::GUID_DATA_TO_PARENT,
-            'Buffer' => mb_convert_encoding($frame, 'UTF-8', 'ISO-8859-1'),
+            'Buffer' => bin2hex($frame), // IO-Datenfluss erwartet den Buffer hex-kodiert
         ], JSON_THROW_ON_ERROR));
 
         $deadline = microtime(true) + $this->ReadPropertyInteger(self::PROP_TIMEOUT) / 1000;
@@ -458,7 +462,7 @@ abstract class CellMonitorBase extends IPSModuleStrict
         $this->SetBuffer('RxBuffer', '');
         $this->SendDataToParent(json_encode([
             'DataID' => self::GUID_DATA_TO_PARENT,
-            'Buffer' => mb_convert_encoding($frame, 'UTF-8', 'ISO-8859-1'),
+            'Buffer' => bin2hex($frame), // IO-Datenfluss erwartet den Buffer hex-kodiert
         ], JSON_THROW_ON_ERROR));
 
         $deadline = microtime(true) + $this->ReadPropertyInteger(self::PROP_TIMEOUT) / 1000;
