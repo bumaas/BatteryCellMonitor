@@ -61,7 +61,8 @@
             "Alarm bits": "Alarm-Bits",
             "Fault bits": "Fehler-Bits",
             "Cell with max voltage": "Zelle mit höchster Spannung",
-            "Cell with min voltage": "Zelle mit niedrigster Spannung"
+            "Cell with min voltage": "Zelle mit niedrigster Spannung",
+            "Module %d temperature min": "Modul %d Temperatur Min"
         }
     }
 }

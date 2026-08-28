@@ -243,10 +243,23 @@ abstract class CellMonitorBase extends IPSModuleStrict
             $this->SetValue("Module{$module}Spread", $spread);
 
             if (isset($tempsByModule[$module])) {
-                $this->ensureVariable("Module{$module}TempMax", sprintf($this->Translate('Module %d temperature max'), $module), VARIABLETYPE_FLOAT, [
-                    'PRESENTATION' => VARIABLE_PRESENTATION_VALUE_PRESENTATION, 'SUFFIX' => ' °C', 'DIGITS' => 1,
-                ], 33 + $module * 10);
-                $this->SetValue("Module{$module}TempMax", (float) $tempsByModule[$module]);
+                // Kindklassen liefern je Modul entweder nur den Höchstwert oder ['max' =>, 'min' =>]
+                $temp    = $tempsByModule[$module];
+                $tempMax = is_array($temp) ? ($temp['max'] ?? null) : $temp;
+                $tempMin = is_array($temp) ? ($temp['min'] ?? null) : null;
+
+                if ($tempMax !== null) {
+                    $this->ensureVariable("Module{$module}TempMax", sprintf($this->Translate('Module %d temperature max'), $module), VARIABLETYPE_FLOAT, [
+                        'PRESENTATION' => VARIABLE_PRESENTATION_VALUE_PRESENTATION, 'SUFFIX' => ' °C', 'DIGITS' => 1,
+                    ], 33 + $module * 10);
+                    $this->SetValue("Module{$module}TempMax", (float) $tempMax);
+                }
+                if ($tempMin !== null) {
+                    $this->ensureVariable("Module{$module}TempMin", sprintf($this->Translate('Module %d temperature min'), $module), VARIABLETYPE_FLOAT, [
+                        'PRESENTATION' => VARIABLE_PRESENTATION_VALUE_PRESENTATION, 'SUFFIX' => ' °C', 'DIGITS' => 1,
+                    ], 34 + $module * 10);
+                    $this->SetValue("Module{$module}TempMin", (float) $tempMin);
+                }
             }
 
             foreach ($cells as $i => $mv) {

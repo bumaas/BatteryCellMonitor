@@ -287,11 +287,18 @@ class BYDCellMonitor extends CellMonitorBase
         $proModul    = $this->tempWordsPerModule($buffer, $moduleCount);
         $temps       = [];
         for ($m = 0; $m < $moduleCount; $m++) {
-            $tMax = 0;
+            $sensoren = [];
             foreach (array_slice($buffer, self::OFFSET_TEMPS + $m * $proModul, $proModul) as $word) {
-                $tMax = max($tMax, $word >> 8, $word & 0xFF);
+                foreach ([$word >> 8, $word & 0xFF] as $wert) {
+                    // 0 heißt "kein Sensor an dieser Stelle" und darf das Minimum nicht verfälschen
+                    if ($wert > 0 && $wert <= self::TEMP_PLAUSIBEL_MAX) {
+                        $sensoren[] = $wert;
+                    }
+                }
             }
-            $temps[$m + 1] = $tMax;
+            if ($sensoren !== []) {
+                $temps[$m + 1] = ['max' => max($sensoren), 'min' => min($sensoren)];
+            }
         }
         return $temps;
     }
@@ -357,11 +364,13 @@ class BYDCellMonitor extends CellMonitorBase
         }
     }
 
+    /**
+     * Seriennummer aus dem Messpuffer lesen. Sie wird bei jeder Messung neu bestimmt und nur
+     * bei Abweichung geschrieben - so übernimmt eine bestehende Instanz auch eine korrigierte
+     * Auswertung (bis build 16 wurde die Nummer einmalig gespeichert und blieb dann stehen).
+     */
     private function extractSerialNumber(array $buffer): void
     {
-        if ($this->ReadAttributeString(self::ATTR_SERIAL) !== '') {
-            return;
-        }
         $serial = '';
         foreach (array_slice($buffer, self::OFFSET_SERIAL, 12) as $word) {
             $serial .= chr($word >> 8) . chr($word & 0xFF);
@@ -369,9 +378,10 @@ class BYDCellMonitor extends CellMonitorBase
         $serial = trim(preg_replace('/[^\x20-\x7E]/', '', $serial));
         // Die BMU füllt das Feld rechts mit 'x' auf (Be Connect zeigt die Nummer ohne sie).
         $serial = rtrim($serial, 'x');
-        if ($serial !== '') {
+        if ($serial !== '' && $serial !== $this->ReadAttributeString(self::ATTR_SERIAL)) {
             $this->WriteAttributeString(self::ATTR_SERIAL, $serial);
             $this->SetSummary($serial);
+            $this->SendDebug(__FUNCTION__, 'Seriennummer: ' . $serial, 0);
         }
     }
 }
