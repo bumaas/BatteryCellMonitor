@@ -2,12 +2,12 @@
   "id":            "{83B4FD69-37B1-41D6-8724-EB3953642BA7}",
   "author":        "bumaas",
   "name":          "Battery Cell Monitor",
-  "url":           "",
+  "url":           "https://github.com/bumaas/BatteryCellMonitor",
   "compatibility": {
     "version": "9.0",
     "date":    0
   },
-  "version":       "0.1",
-  "build":         20,
-  "date":          1787929163
+  "version":       "1.0",
+  "build":         21,
+  "date":          1787929722
 }
