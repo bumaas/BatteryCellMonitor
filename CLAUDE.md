@@ -64,10 +64,22 @@ Protokoll nach sarnau/BYD-Battery-Box-Infos, am 25.08.2026 verifiziert:
   Das Modul führt sie seit build 14 als „Geladene/Entladene Energie (BMU)" in kWh.
   Äquivalente Vollzyklen ergeben sich daraus als Entladeenergie ÷ nutzbare Kapazität
   (nuc: 3.284 kWh ÷ 10,8 kWh ≈ 300 Zyklen bei SOH 91).
-- **Der Statusblock 0x0500 ist BMU-global, nicht turmbezogen** — er wird ohne
-  Handshake gelesen. Bei Mehrturm-Anlagen zeigen deshalb alle Instanzen dieselben
-  SOC-, SOH-, Strom- und Energiewerte (bei erpe belegt: beide Türme 46921).
-  Turmspezifisch sind nur die Werte aus der Zellmessung.
+- **Zwei Ebenen — Box und Turm** (geklärt 28.08.2026 mit erpes Be-Connect-Screenshots):
+  Der **Statusblock 0x0500** (ohne Handshake) liefert die Werte der **ganzen Box** —
+  genau die „Information"-Seite von Be Connect Plus: SOC als Mittel (30 %), Strom als
+  Summe beider Türme (−2,8 A = −1,5 + −1,2). Die **turmgenauen** Werte stehen im
+  **Fensterblock hinter dem Handshake** und sind gegen Be Connect verifiziert:
+  Wort **0/1** = Max/Min-Zellspannung (mV), **3/4** = Temperatur max/min, **20** =
+  Batteriespannung, **23** = Ausgangsspannung (je ×0,1 V), **24** = SOC ×0,1,
+  **25** = SOH. Beleg: Türme mit 33,0/28,3 % gegen Be Connect 32,6/27,7 %.
+  Seit build 16 holt der Statuspoll diese Werte turmgenau, sobald die Box mehr als ein
+  BMS meldet (Config Word); die Handshake-Logik steckt dafür in `readWindow()`.
+- **Seriennummer beginnt bei Wort 33, nicht 34** (Korrektur 28.08.2026): erpes Nummer
+  lautet `P030T020Z2308311111`, gelesen wurde `30T020Z…` — das führende Wort 33
+  (0x5030 = „P0") fehlte. Rechts füllt die BMU mit „x" auf; das wird abgeschnitten.
+- **`compatibility.date` gehört auf 0** und darf beim Build-Hochzählen nicht mit dem
+  Bibliotheksdatum überschrieben werden — sonst verlangt Symcon einen Kernel, der
+  mindestens so neu ist, und lehnt Installation wie Update ab.
 - **Max/Min-Zellspannung im Statusblock hat nur 10-mV-Auflösung** (Wort 1/2 × 0,01 V).
   Bei engem Turm stehen dort Max = Min und Delta 0 — kein Fehler; die feinen Werte
   (1 mV) kommen aus der Zellmessung.
