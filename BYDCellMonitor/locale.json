@@ -59,7 +59,8 @@
             "Max cell temperature": "Max. Zelltemperatur",
             "Min cell temperature": "Min. Zelltemperatur",
             "Error bitmask": "Fehler-Bitmask",
-            "Charge cycles": "Ladezyklen"
+            "Charged energy (BMU)": "Geladene Energie (BMU)",
+            "Discharged energy (BMU)": "Entladene Energie (BMU)"
         }
     }
 }

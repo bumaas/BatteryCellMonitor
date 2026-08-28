@@ -55,11 +55,19 @@ Protokoll nach sarnau/BYD-Battery-Box-Infos, am 25.08.2026 verifiziert:
 - Infoblock Register 14–17: BMS-Version, Config Word (Bits 0–3 Modulzahl,
   4–7 BMS-Anzahl), Batterietyp.
 - **FC16-Kombi-Writes lehnt die BMU ab** — nur einzelne FC06.
-- **Zyklenzähler (Wort 17/19) sind unbrauchbar** (28.08.2026 an zwei Anlagen belegt):
-  nuc/HVM meldet Lade- 50304 und Entladezyklen 32835, erpes HVS bei **beiden**
-  Türmen identisch 46921. sarnaus Deutung (0x0511 Charge Cycles, 0x0513 Discharge
-  Cycles) trifft auf diese BMU-Firmwares nicht zu. Das Modul legt die Variable
-  seit build 13 nur an, wenn der Wert plausibel ist (≤ 20.000).
+- **Wort 17/19 sind Energiezähler, keine Zyklen** (geklärt 28.08.2026, build 14).
+  sarnaus Deutung „Charge Cycles / Discharge Cycles" (0x0511/0x0513) führt in die
+  Irre: Die Werte wachsen streng monoton um ~80 Schritte/Tag. Geeicht gegen die
+  AC-seitigen SBS-Zähler des nuc über 7/30/90 Tage — stabil **104,6 Wh je Schritt
+  beim Laden, 95,0 Wh beim Entladen**. Die Abweichung von 100 Wh ist genau der
+  Wandlerverlust (Round-Trip 90,6 %), DC-seitig ist ein Schritt also **0,1 kWh**.
+  Das Modul führt sie seit build 14 als „Geladene/Entladene Energie (BMU)" in kWh.
+  Äquivalente Vollzyklen ergeben sich daraus als Entladeenergie ÷ nutzbare Kapazität
+  (nuc: 3.284 kWh ÷ 10,8 kWh ≈ 300 Zyklen bei SOH 91).
+- **Der Statusblock 0x0500 ist BMU-global, nicht turmbezogen** — er wird ohne
+  Handshake gelesen. Bei Mehrturm-Anlagen zeigen deshalb alle Instanzen dieselben
+  SOC-, SOH-, Strom- und Energiewerte (bei erpe belegt: beide Türme 46921).
+  Turmspezifisch sind nur die Werte aus der Zellmessung.
 - **Max/Min-Zellspannung im Statusblock hat nur 10-mV-Auflösung** (Wort 1/2 × 0,01 V).
   Bei engem Turm stehen dort Max = Min und Delta 0 — kein Fehler; die feinen Werte
   (1 mV) kommen aus der Zellmessung.

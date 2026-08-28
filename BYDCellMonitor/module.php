@@ -49,7 +49,6 @@ class BYDCellMonitor extends CellMonitorBase
     private const int OFFSET_TEMPS   = 177; // 2 Sensoren je Wort; Wortzahl je Modul variiert (HVM 4, HVS 6)
     private const int TEMPWORDS_MIN_PER_MODULE = 4;
     private const int TEMP_PLAUSIBEL_MAX       = 80;    // °C je Sensorbyte - trennt Temperaturen von Folgedaten
-    private const int CYCLES_PLAUSIBEL_MAX     = 20000; // darüber ist Wort 17 sicher keine Zyklenzahl
 
     protected function useRtuFraming(): bool
     {
@@ -83,7 +82,12 @@ class BYDCellMonitor extends CellMonitorBase
         $this->ensureVariable('ErrorBitmask', $this->Translate('Error bitmask'), VARIABLETYPE_INTEGER, [
             'PRESENTATION' => VARIABLE_PRESENTATION_VALUE_PRESENTATION, 'DIGITS' => 0,
         ], 25);
-        // Ladezyklen werden bewusst NICHT vorab angelegt - siehe readStatusValues().
+        $this->ensureVariable('EnergyCharged', $this->Translate('Charged energy (BMU)'), VARIABLETYPE_FLOAT, [
+            'PRESENTATION' => VARIABLE_PRESENTATION_VALUE_PRESENTATION, 'SUFFIX' => ' kWh', 'DIGITS' => 1,
+        ], 26);
+        $this->ensureVariable('EnergyDischarged', $this->Translate('Discharged energy (BMU)'), VARIABLETYPE_FLOAT, [
+            'PRESENTATION' => VARIABLE_PRESENTATION_VALUE_PRESENTATION, 'SUFFIX' => ' kWh', 'DIGITS' => 1,
+        ], 27);
     }
 
     /** Statusblock ab 0x0500 lesen (dauerhaft verfügbar, kein Handshake nötig). */
@@ -110,15 +114,12 @@ class BYDCellMonitor extends CellMonitorBase
         $this->SetValue('CellTempMin', self::toSigned16($words[7]));
         $this->SetValue('ErrorBitmask', $words[13]);
 
-        // Wort 17 ist laut sarnau die Zahl der Ladezyklen. Auf den bisher erprobten
-        // BMU-Firmwares steht dort etwas anderes (HVM 50304, HVS 46921 bei beiden Türmen
-        // gleich) - die Variable entsteht deshalb nur, wenn der Wert überhaupt plausibel ist.
-        if ($words[17] > 0 && $words[17] <= self::CYCLES_PLAUSIBEL_MAX) {
-            $this->ensureVariable('ChargeCycles', $this->Translate('Charge cycles'), VARIABLETYPE_INTEGER, [
-                'PRESENTATION' => VARIABLE_PRESENTATION_VALUE_PRESENTATION, 'DIGITS' => 0,
-            ], 26);
-            $this->SetValue('ChargeCycles', $words[17]);
-        }
+        // Wort 17/19 gelten in der Literatur als Lade- bzw. Entladezyklen, sind aber
+        // Energiezähler in 0,1-kWh-Schritten (28.08.2026 am HVM gegen die AC-seitigen
+        // Zähler geeicht: 104,6 Wh je Schritt beim Laden, 95,0 Wh beim Entladen - die
+        // Differenz ist exakt der Wandlerverlust, DC-seitig also 100 Wh).
+        $this->SetValue('EnergyCharged', $words[17] / 10);
+        $this->SetValue('EnergyDischarged', $words[19] / 10);
 
         if ($words[13] !== 0) {
             $this->LogMessage(sprintf('BMU meldet Fehler-Bitmask 0x%X', $words[13]), KL_ERROR);

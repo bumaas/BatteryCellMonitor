@@ -89,7 +89,8 @@ zwei Abnehmer am selben Socket stören sich gegenseitig.
 
 Statuswerte (je nach Gerät): Ladezustand, Batteriestrom (negativ = Laden),
 Batteriespannung, SOH bzw. Leistung, Max./Min. Zellspannung, Zell-Delta,
-Zelltemperaturen, Fehler-/Alarm-Bits, Ladezyklen.
+Zelltemperaturen, Fehler-/Alarm-Bits sowie beim BYD die von der BMU gezählte
+geladene und entladene Energie.
 
 Je Zellmessung: pro Modul **Min/Max/Spannweite** (und Max-Temperatur), dazu
 Turm-weit „Letzte Zellmessung", „SOC bei Messung", „Strom bei Messung" und
@@ -122,9 +123,13 @@ zu ignorieren.
 - **Max. = Min. Zellspannung, Zell-Delta 0 mV:** kein Fehler. Diese beiden Werte
   stammen aus dem Statusblock und haben dort nur 10-mV-Auflösung; bei einem engen
   Turm fallen sie zusammen. Die feinen Werte je Modul entstehen bei einer Zellmessung.
-- **Keine Variable „Ladezyklen":** Das dafür vorgesehene Register liefert auf den
-  bisher erprobten BYD-Firmwares keinen sinnvollen Wert; die Variable wird deshalb
-  nur angelegt, wenn der Zähler plausibel ist.
+- **Statuswerte bei mehreren Türmen identisch:** richtig so. SOC, SOH, Strom und die
+  Energiezähler kommen aus dem BMU-Statusblock und gelten für die ganze Battery-Box;
+  turmspezifisch sind nur die Werte aus der Zellmessung.
+- **Keine „Ladezyklen":** Die Register, die dafür gehalten werden, sind in Wirklichkeit
+  Energiezähler (0,1 kWh je Schritt) — das Modul führt sie als „Geladene/Entladene
+  Energie (BMU)". Äquivalente Vollzyklen ergeben sich daraus als entladene Energie
+  geteilt durch die nutzbare Kapazität.
 - **Unplausible Zellwerte** (nicht um 3300 mV): Beim BYD die Debug-Zeile
   **„RawWords"** einer Messung sichern und im Forum posten — daraus lassen sich
   die Wort-Offsets abweichender Varianten (z. B. HVS) bestimmen.
