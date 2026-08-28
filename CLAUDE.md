@@ -59,7 +59,18 @@ Protokoll nach sarnau/BYD-Battery-Box-Infos, am 25.08.2026 verifiziert:
   selben Client Socket liefern beide sauber; die Bus-Semaphore hält sie
   auseinander.
 
-## Marstek (vorbereitet, UNGETESTET — kein Gerät mit ModBus-Zugang vorhanden)
+## Marstek (Registerkarte verifiziert, Modul selbst noch ungetestet)
+
+**Port 5200, nicht 502** (Fund 28.08.2026 an der Venus E 3.0 in Neustadt,
+192.168.10.187, gelesen über Tailscale): Auf 502 antwortet zwar ebenfalls ein
+ModBus-Dienst, quittiert aber jedes Register der v3-Karte mit Ausnahme 2. Über
+**5200** kamen alle unten genannten Register plausibel — SOC 21,7 %, 16 Zellen
+3262–3266 mV, 52,21 V / −6,2 A, −339 W, 32,4 °C intern, Zelle max/min 27,4/25,8 °C,
+Max/Min-Zelle 3265/3262 deckungsgleich mit den Einzelzellen. **Das Gerät nimmt
+mehrere ModBus-Clients gleichzeitig an** — Neustadts eigene Anbindung (Socket
+#58979 → .187:5200, Gateway #44245, Device #51383) lief währenddessen ungestört
+weiter. Prüfskript: `venus_probe.php` (Scratchpad, reines MBAP-FC03).
+
 
 Registerkarte nach ViperRNMC/marstek_venus_modbus (`registers/e_v3.yaml`,
 Stand 08/2026), Venus E v3:
@@ -68,8 +79,9 @@ Stand 08/2026), Venus E v3:
   Leistung 30001 signed; Temperaturen 35000/35010/35011 ×0,1
 - Alarm 36000 (2 Register), Fault 36100 (4 Register) — Bedeutung der Bits
   noch nicht dokumentiert, werden als Hex-String ausgegeben
-- Venus E **v3 hat Ethernet direkt** (Port 502); v1/v2 brauchen eine
-  RS485-Bridge (Elfin EW11, USR DR134) im ModBus-TCP-Modus. **v1/v2 haben
+- Venus E **v3 spricht ModBus direkt über das Netz** (Port 5200, s. o.);
+  v1/v2 brauchen eine RS485-Bridge (Elfin EW11, USR DR134) im ModBus-TCP-Modus
+  (dort dann Port 502). **v1/v2 haben
   teils andere Register** (`e_v12.yaml`, z. B. SOC 32104) — bei Bedarf als
   zweite Registerkarte nachrüsten.
 - Burkhards vorhandene Venus E 3.0 (am MarstekShellyEmulator) und die geplante

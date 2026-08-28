@@ -10,7 +10,7 @@ Entladeschluss einbrechen — die frühesten Anzeichen für Alterung oder Defekt
 | Modul | Gerät | Status |
 |---|---|---|
 | **BYD Battery Cell Monitor** | BYD Battery-Box Premium (BCU, ModBus RTU über TCP, Port 8080) | erprobt an HVM (5 Module à 16 Zellen) und HVS (2 Türme à 4 Module à 32 Zellen); Alpha |
-| **Marstek Battery Cell Monitor** | Marstek Venus E (v3 direkt per Ethernet, ältere über RS485-Bridge) | vorbereitet, **ungetestet** |
+| **Marstek Battery Cell Monitor** | Marstek Venus E (v3 direkt über Netzwerk, Port 5200; ältere über RS485-Bridge) | Registerkarte an einer Venus E 3.0 verifiziert, Modul selbst noch ungetestet |
 
 > **Alpha-Stand:** Die Bibliothek ist neu. Das BYD-Ausleseverfahren läuft seit
 > 08/2026 produktiv (als Skript), das Modul selbst wird gerade an echter
@@ -51,8 +51,10 @@ https://github.com/bumaas/BatteryCellMonitor.git
      Heimnetz hängen (LAN-Kabel an den RJ45-Port der BCU); die Hotspot-Adresse
      `192.168.16.254` ist nur aus dem BYD-eigenen WLAN bzw. über eine passende
      Route erreichbar.
-   - Marstek Venus E v3: IP des Geräts, **Port 502**; ältere Venus E über eine
-     RS485-zu-Ethernet-Bridge im ModBus-TCP-Modus (z. B. Elfin EW11)
+   - Marstek Venus E v3: IP des Geräts, **Port 5200** (der WLAN-/LAN-ModBus des
+     Geräts; auf Port 502 antwortet zwar auch ein ModBus-Dienst, dort sind die
+     Register aber nicht erreichbar). Ältere Venus E über eine
+     RS485-zu-Ethernet-Bridge im ModBus-TCP-Modus (z. B. Elfin EW11), dort Port 502
 3. Bei BYD den **BMS-Index** wählen (Turm 1, 2, …). Für einen zweiten Turm eine
    zweite Instanz **am selben Client Socket** anlegen (BMS-Index 2) — die
    Zugriffe werden automatisch serialisiert.
