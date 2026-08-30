@@ -1,8 +1,45 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
 # Battery Cell Monitor — Projektwissen
 
 Symcon-Modulbibliothek (bumaas), entstanden 08/2026 aus dem Zellmonitor-Skript
 des nuc (Skript #56646, Projekt `E:\Desktop\Smart Home\Eigenes`). Zwei
 Gerätemodule über einer gemeinsamen Basisklasse (`libs/CellMonitorBase.php`).
+
+## Arbeitsumgebung: das Repo *ist* die Live-Installation
+
+`T:\modules\BatteryCellMonitor` liegt im **produktiven modules-Verzeichnis des nuc**
+(`\\nuc\Symcon`) — jede gespeicherte Datei wirkt auf die laufende Anlage. Daraus folgt:
+
+- Nach Änderungen an `module.php`/`libs/*.php` die Bibliothek neu einlesen (kein
+  Kernel-Neustart nötig):
+  `… symcon_rpc.php MC_ReloadModule 51062 '"BatteryCellMonitor"'`
+  (Modules-Instanz des nuc = **#51062**, Parameter ist der Verzeichnisname).
+- Live-Instanzen zum Verifizieren: **BYD Zellmonitor #11890** (Client Socket #34193),
+  **Marstek Zellmonitor (Test Neustadt) #50851** (Client Socket #21399).
+- Messung/Abfrage ohne Konsole auslösen: `IPS_RequestAction <id> "MeasureNow" 0` bzw.
+  `"TimerStatus"`, oder `BYDCM_Measure`/`BYDCM_PollStatus` (Marstek: `MSTCM_*`);
+  Ergebnisse per `GetValue` gegenprüfen. RPC-Helfer und Zugangsdaten: globale `CLAUDE.md`.
+
+## Prüfungen
+
+Es gibt **keine Unit-Tests**; die CI (`.github/workflows/check.yml`, PHP 8.4) besteht aus
+drei Schritten, die lokal genauso laufen (`php` = `C:\php\php`):
+
+```bash
+php -l libs/CellMonitorBase.php && php -l BYDCellMonitor/module.php \
+  && php -l MarstekCellMonitor/module.php && php -l tests/check_locale.php
+php tests/check_locale.php          # Übersetzungen, Exit-Code 1 bei Lücken
+find . -name '*.json' -not -path './.git/*' -print0 |
+  xargs -0 -n1 php -r 'json_decode(file_get_contents($argv[1]), false, 512, JSON_THROW_ON_ERROR);' --
+```
+
+`tests/check_locale.php` prüft **beide** Modulverzeichnisse in einem Lauf (keine Einzelwahl)
+und hängt `libs/*.php` an die Modulquelle an, weil die `Translate()`-Texte der Basisklasse
+im Modulkontext laufen. Verwaiste `de`-Schlüssel sind nur ein Hinweis, kein Fehler.
+Die eigentliche Verifikation ist eine Messung an echter Hardware (siehe oben).
 
 ## Architektur
 
@@ -14,12 +51,48 @@ Gerätemodule über einer gemeinsamen Basisklasse (`libs/CellMonitorBase.php`).
   dort sichern Bus-Semaphore + Puffer-Reset die Zuordnung. Semaphore **je Parent**
   (`CellMonitorBus_<ParentID>` — zwei Türme an einer BCU dürfen sich nicht
   überlappen), Variablenverwaltung, Schwellwertprüfung, Push mit Sperrzeiten.
-- **Kindklassen** implementieren `readStatusValues()`, `readCellVoltages()`,
-  optional `readModuleTemperatures()`, `registerVendorVariables()`.
+- **Datenweg:** `ReceiveData()` hängt jeden Chunk an den `RxBuffer` (`hex2bin` beim
+  Eintreffen, base64 im Buffer); `mbapTransaction()`/`rtuTransaction()` pollen ihn im
+  20-ms-Takt bis zum Timeout und zerlegen ihn framegenau. Ausgehend immer `bin2hex`
+  (siehe „Kompatibilität"). Die Länge einer RTU-Antwort ergibt sich aus dem
+  Funktionscode (`rtuFrameLength()`); Ausnahmeframes sind 5 Byte lang.
+- **Ablauf:** `PollStatus()` → `parentVerbunden()` → `readStatusValues()` →
+  `maybeAutoMeasure()` (SOC-Trigger mit Sperrzeit). `Measure()` → `readCellVoltages()`
+  + `readModuleTemperatures()` → `processCellVoltages()`, das alles Weitere erledigt:
+  Modulvariablen anlegen und füllen, Schwellwerte prüfen, `LastAlert` schreiben,
+  `LogMessage` und Push absetzen.
 - Timer laufen über `IPS_RequestAction($_IPS['TARGET'], 'TimerStatus'/'TimerMeasure', 0)`
-  — dadurch prefix-unabhängig in der Basisklasse registrierbar.
-- Byte-sichere Socket-Übergabe per `mb_convert_encoding(…, 'UTF-8', 'ISO-8859-1')`
-  (das früher übliche `utf8_encode` ist seit PHP 8.2 deprecated).
+  — dadurch prefix-unabhängig in der Basisklasse registrierbar. Weitere Idents:
+  `MeasureNow`, `TestPush`, `TxTest` (Diagnose: rohe Hex-Bytes über den Datenfluss).
+  Die Knöpfe in `form.json` rufen ausschließlich `IPS_RequestAction`.
+
+### Ein weiteres Herstellermodul ergänzen
+
+1. Verzeichnis `<Vendor>CellMonitor` mit `module.json` (`type` 3, `parentRequirements`
+   = Client-Socket-Datenfluss `{79827379-…}`, eigener `prefix`), `form.json` (Captions
+   **englisch** — sie sind zugleich die Locale-Schlüssel) und `locale.json` (`de`).
+2. `require_once __DIR__ . '/../libs/CellMonitorBase.php';`, Klasse `extends CellMonitorBase`.
+3. Pflicht: `readStatusValues(): ?int` (setzt die Statusvariablen, gibt den SOC zurück,
+   `null` bei Fehler), `readCellVoltages(): ?array` (`[Modulnummer ab 1 => [mV, …]]`),
+   `registerVendorVariables()`. Optional `readModuleTemperatures()`
+   (`[Modul => °C]` oder `[Modul => ['max' => …, 'min' => …]]`) und `useRtuFraming()`.
+4. **Jeden Geräte-Dialog in `withBusLock()` kapseln** — mehrstufige Abläufe (BYD-Handshake)
+   als Ganzes, nicht je Einzelregister.
+5. Mitziehen: `$moduleDirs` in `tests/check_locale.php` und die `php -l`-Liste in
+   `.github/workflows/check.yml`.
+
+### Konventionen im Code
+
+- Variablen **nur über `ensureVariable()`** anlegen: setzt Presentations, aktiviert
+  Archiv-Logging für **neu angelegte** numerische Variablen und schaltet mit
+  `$counter = true` die Aggregation „Zähler" (für monoton steigende Werte wie die
+  BMU-Energien, damit Tages-/Monatswerte als Differenz statt als Mittel entstehen).
+- Positionen: 10er = Statuswerte, 16/17 = Zellnummern, 20er = Zellspannung/-temperatur,
+  `30 + Modul*10` = Werte je Modul, 80er = Angaben zur Messung, 90er = Hinweistexte.
+- Idents und `Translate()`-Texte englisch, Anzeigetexte über `locale.json`.
+- Keine Legacy-Profile (`IPS_CreateVariableProfile`/`RegisterProfile`) — Presentations.
+- Öffentliche Skript-API bleibt schlank: `Measure()` und `PollStatus()`; alles Weitere
+  über `RequestAction`-Idents.
 
 ## BYD (erprobt am HVM-Turm des nuc, 5 Module à 16 Zellen)
 
@@ -48,7 +121,7 @@ Protokoll nach sarnau/BYD-Battery-Box-Infos, am 25.08.2026 verifiziert:
 - Danach **4× denselben 65er-Block ab 0x0558** lesen (wanderndes Fenster);
   erstes Wort jeder Lesung ist Header. Zusammengesetzter Puffer (256 Worte):
   Zellen mV ab Wort 48, Temperaturen ab Wort 177 (2 Sensoren je Wort,
-  4 Worte je Modul), Seriennummer Wort 34–45 (ASCII).
+  4 Worte je Modul), Seriennummer Wort 33–44 (ASCII).
 - Statusblock **0x0500 (1280), 20 Worte, ohne Handshake**: SOC, Max/Min-Zell-
   spannung ×0,01, SOH, Strom ×0,1 signed (negativ = Laden), Batteriespannung
   ×0,01, Zelltemperaturen, Wort 13 = Fehler-Bitmask, Wort 17 = Ladezyklen.
@@ -130,28 +203,20 @@ Stand 08/2026), Venus E v3:
 - Burkhards vorhandene Venus E 3.0 (am MarstekShellyEmulator) und die geplante
   Zweitbatterie sind die Zielgeräte für den Ersttest.
 
-## Teststand / offene Punkte (Stand 27.08.2026)
+## Stand und offene Punkte (30.08.2026, 1.0 build 21)
 
-- Repo entsteht **außerhalb von `T:\modules`** (Urlaubsmodus: nuc scannt
-  `T:\modules` als Modulverzeichnis; erst nach dem Urlaub dorthin umziehen).
-- Noch **nicht gegen echte Hardware getestet** — nur `php -l`, JSON- und
-  Locale-Check. Testplan nach dem Urlaub:
-  1. Auf der **Testbox** installieren (git), Instanz gegen die BCU
-     192.168.178.24:8080 anlegen. Achtung: der nuc hält bereits eine
-     dauerhafte Socket-Verbindung zur BCU — zuerst klären, ob die BCU eine
-     zweite TCP-Verbindung parallel akzeptiert; sonst Test in einem Fenster,
-     in dem der nuc-Socket geschlossen ist.
-  2. Vergleichsmessung gegen das Skript #56646 (gleiche Werte je Zelle?).
-  3. Danach Skript #56646 + Blockabfrage #27108 + Dummy-Modul-Zweig auf dem
-     nuc durch eine Modul-Instanz ersetzen (Archiv-Historie der bestehenden
-     Variablen beachten — ggf. Variablen umziehen statt neu anlegen).
-  4. Marstek-Modul an der vorhandenen Venus E 3.0 erproben (erst prüfen, ob
-     ModBus/Ethernet dort aktiv ist).
-- Presentations statt Profile (`VARIABLE_PRESENTATION_VALUE_PRESENTATION`
-  mit SUFFIX/DIGITS); `ensureVariable()` aktiviert Archiv-Logging nur für
-  **neu angelegte** numerische Variablen.
-- Referenz-Checkliste: `T:\modules\BlindControl` (CI, locale-Check übernommen;
-  `tests/check_locale.php` prüft hier zusätzlich `libs/*.php` mit).
+- Beide Module laufen an echter Hardware (BYD am HVM des nuc und am HVS von erpe,
+  Marstek an der Venus E 3.0 in Neustadt). Mit build 21 trägt die Bibliothek die
+  Version **1.0** für die Erstveröffentlichung im Store (Beta-Kanal); Rückmeldungen
+  laufen über das Forumsthema `t/144307`.
+- **Noch offen:** Das alte Zellmonitor-Skript **#56646**, die Blockabfrage **#27108**
+  und der Dummy-Modul-Zweig auf dem nuc bestehen weiter und sollen durch die
+  Modul-Instanz #11890 abgelöst werden. Dabei die **Archiv-Historie der bestehenden
+  Variablen** beachten — eher Variablen umziehen als neu anlegen.
+- Optimierung Marstek: `readStatusValues()` liest sechs Einzelblöcke (2,3 s je Poll);
+  Bündeln zusammenhängender Register wäre der nächste Schritt.
+- Referenz-Checkliste für eigene Module: `T:\modules\BlindControl` (CI und
+  `tests/check_locale.php` sind von dort übernommen).
 
 ## Kompatibilität (korrigiert 28.08.2026: 9.0)
 
@@ -166,6 +231,8 @@ Stand 08/2026), Venus E v3:
   in Erinnerung.
 - **9.1 ist NICHT nötig** — der RequestRead-Blockabfrage-Fix (t/143397) betrifft
   nur den Symcon-ModBus-Stack; das Modul framet selbst auf dem Client Socket.
+- **`ConnectParent()` gibt es nicht mehr** (build 7): Der Client Socket wird über
+  `GetCompatibleParents()` (`type: connect`) angeboten, nicht im `Create()` verbunden.
 - Nachrangig (wäre ohne den Datenfluss die Grenze gewesen): Darstellungen
   brauchen ≥ 8.0, typisierte Klassenkonstanten PHP ≥ 8.3 (ab 8.1 belegt).
 - `VISU_PostNotification` ist per `function_exists` + `WFC_PushNotification`-
