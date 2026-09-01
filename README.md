@@ -9,12 +9,13 @@ Entladeschluss einbrechen — die frühesten Anzeichen für Alterung oder Defekt
 
 | Modul | Gerät | Status |
 |---|---|---|
-| **BYD Battery Cell Monitor** | BYD Battery-Box Premium (BCU, ModBus RTU über TCP, Port 8080) | erprobt an HVM (5 Module à 16 Zellen) und HVS (2 Türme à 4 Module à 32 Zellen); Alpha |
-| **Marstek Battery Cell Monitor** | Marstek Venus E (v3 direkt über Netzwerk, Port 5200; ältere über RS485-Bridge) | an einer Venus E 3.0 erprobt (Werte gegen eine unabhängige Erfassung geprüft); Alpha |
+| **BYD Battery Cell Monitor** | BYD Battery-Box Premium (BCU, ModBus RTU über TCP, Port 8080) | erprobt an HVM (5 Module à 16 Zellen) und HVS (2 Türme à 4 Module à 32 Zellen); Beta |
+| **Marstek Battery Cell Monitor** | Marstek Venus E (v3 direkt über Netzwerk, Port 5200; ältere über RS485-Bridge) | an einer Venus E 3.0 erprobt (Werte gegen eine unabhängige Erfassung geprüft); Beta |
 
-> **Alpha-Stand:** Die Bibliothek ist neu. Das BYD-Ausleseverfahren läuft seit
-> 08/2026 produktiv (als Skript), das Modul selbst wird gerade an echter
-> Hardware erprobt. Rückmeldungen gern im
+> **Beta-Stand:** Die Bibliothek ist neu und seit 08/2026 im **Module Store
+> (Kanal Beta)** verfügbar; beide Module laufen an echter Hardware. Das
+> BYD-Ausleseverfahren ist zuvor über Monate als Skript produktiv gelaufen.
+> Rückmeldungen gern im
 > [Symcon-Forum](https://community.symcon.de/t/144307).
 
 ## Funktionsumfang
@@ -35,7 +36,10 @@ BYD nutzt ModBus RTU über TCP (CRC16), Marstek ModBus TCP (MBAP).
 
 ## Installation
 
-Kern-Konsole → **Modulverwaltung** → Hinzufügen:
+Über den **Module Store** (Kanal Beta): dort heißt die Bibliothek
+*Battery Cell Monitor* — Updates kommen dann automatisch.
+
+Alternativ direkt aus Git, Kern-Konsole → **Modulverwaltung** → Hinzufügen:
 
 ```
 https://github.com/bumaas/BatteryCellMonitor.git
@@ -108,14 +112,60 @@ BYDCM_PollStatus(12345);   // Statusblock sofort abfragen
 // Marstek entsprechend: MSTCM_Measure(...), MSTCM_PollStatus(...)
 ```
 
+## Etwas Batterietheorie
+
+Alle unterstützten Speicher arbeiten mit **LiFePO4-Zellen** (LFP). Deren
+Kennlinie ist der Grund, warum es dieses Modul gibt: Zwischen etwa 10 und 90 %
+Ladezustand liegt die Zellspannung nahezu unverändert bei 3,2–3,35 V. In diesem
+Plateau sagt die Spannung fast nichts über den Zustand einer einzelnen Zelle
+aus — erst an den Enden wird die Kurve steil, und dort zeigt sich, welche Zelle
+noch mitkommt und welche nicht. Daraus folgen drei Dinge:
+
+- **Gemessen wird an den Enden.** Deshalb misst das Modul zusätzlich zur
+  zyklischen Messung, sobald der SOC den Ladeschluss (99 %) oder den
+  Entladeschluss (5 %) erreicht. Eine Messung bei 60 % SOC zeigt fast immer ein
+  sauberes Bild, auch wenn eine Zelle längst schwächelt.
+- **Die Spannweite sagt mehr als der Absolutwert.** Eine Zelle, die am
+  Ladeschluss deutlich über ihren Nachbarinnen liegt, ist eher voll — sie hat
+  weniger Kapazität. Interessant ist daher, wie sich die Spannweite eines Moduls
+  über Wochen und Monate entwickelt, nicht ihr Wert an einem einzelnen Tag.
+  Genau dafür lohnt die Archiv-Protokollierung.
+- **Balancing braucht Zeit am oberen Ende.** Das BMS gleicht passiv aus, mit
+  Strömen im Bereich weniger Zehntel Ampere, und nur bei hohem Ladezustand. Ein
+  Speicher, der monatelang zwischen 20 und 80 % pendelt, driftet langsam
+  auseinander; eine gelegentliche Vollladung ist insofern Wartung.
+
+Die Temperaturen sind das zweite Frühwarnsignal: Zellen desselben Moduls stehen
+im gleichen Gehäuse und sollten sich um wenige Kelvin unterscheiden. Eine
+dauerhaft größere Spreizung deutet auf ungleiche Kühlung oder einen schlechten
+Kontakt — und ein warm laufender Übergangswiderstand fällt auf, lange bevor die
+Spannungen auffällig werden.
+
 ## Schwellwerte (Vorgaben)
 
-LiFePO4-typische Werte, in mV je Zelle: Warnung ab 3570 / kritisch ab 3650
-(Ladeschluss), Warnung unter 2850 / kritisch unter 2600 (Entladeschluss),
-Modul-Spannweite ab 250. Die BMU/das BMS schützt die Zellen selbst — die
-Hinweise dienen der Früherkennung, nicht dem Schutz. Wer täglich an der
-Warnschwelle kratzt (alternde Zellen), hebt sie leicht an, statt die Meldungen
-zu ignorieren.
+Die Grenzen sind **Vorgaben des Moduls, keine Herstellerwerte** — sie werden
+nicht aus dem BMS gelesen, sondern sind LiFePO4-typische Erfahrungswerte und in
+jeder Instanz frei einstellbar.
+
+| Schwelle | Vorgabe | Gedanke dahinter |
+|---|---|---|
+| Warnung hoch | 3570 mV | oberes Ende des normalen Ladeschlusses; ab hier wird die Kennlinie steil |
+| Kritisch hoch | 3650 mV | Ladeschlussspannung der Zelle — hier greift der Zellschutz |
+| Warnung niedrig | 2850 mV | unteres Knie der Kennlinie, deutlich vor der Abschaltung |
+| Kritisch niedrig | 2600 mV | Tiefentladebereich |
+| Spannweite je Modul | 250 mV | großzügig, weil am Ladeschluss gemessen wird |
+| Temperaturspreizung | 8 K | 2–5 K sind im Betrieb üblich |
+
+Das BMS schützt die Zellen selbst; die Hinweise dienen der **Früherkennung**,
+nicht dem Schutz. Deshalb kann das Modul warnen, während die App oder das Portal
+des Herstellers schweigt: Dort schlägt erst die eigene Schutzschwelle an, die
+höher liegt.
+
+Eine einzelne Zelle knapp über der Warnschwelle ist am Ladeschluss für sich
+genommen kein Defekt — am steilen Ende laufen die Zellen naturgemäß auseinander,
+und das BMS fängt sie ab. Kommt die Meldung dagegen täglich, gehört die
+Warnschwelle angehoben (etwa auf 3600 mV), statt die Meldungen zu ignorieren;
+die Aufmerksamkeit gilt dann der Spannweite und ihrer Entwicklung.
 
 ## Fehlersuche
 
@@ -127,6 +177,9 @@ zu ignorieren.
 - **Max. = Min. Zellspannung, Zell-Delta 0 mV:** kein Fehler. Diese beiden Werte
   stammen aus dem Statusblock und haben dort nur 10-mV-Auflösung; bei einem engen
   Turm fallen sie zusammen. Die feinen Werte je Modul entstehen bei einer Zellmessung.
+- **Warnung, obwohl die Hersteller-App nichts meldet:** erwartbar. Die Vorgaben
+  liegen bewusst unter den Schutzschwellen des BMS (siehe „Schwellwerte"); eine
+  Zelle knapp über der Warnschwelle ist am Ladeschluss normal.
 - **Statuswerte bei mehreren Türmen identisch:** richtig so. SOC, SOH, Strom und die
   Energiezähler kommen aus dem BMU-Statusblock und gelten für die ganze Battery-Box;
   turmspezifisch sind nur die Werte aus der Zellmessung.
