@@ -75,7 +75,10 @@ abstract class CellMonitorBase extends IPSModuleStrict
         $this->RegisterPropertyInteger(self::PROP_CELLMAXCRIT, 3650);
         $this->RegisterPropertyInteger(self::PROP_CELLMINWARN, 2850);
         $this->RegisterPropertyInteger(self::PROP_CELLMINCRIT, 2600);
-        $this->RegisterPropertyInteger(self::PROP_SPREADWARN, 250);
+        // Spannweite je Modul: am Ladeschluss laufen gesunde Zellen weit auseinander,
+        // bis das Balancing sie wieder einfängt. Am HVM des Autors wurden über 30 Tage
+        // ohne jede Auffälligkeit bis zu 271 mV gemessen - die Vorgabe liegt darüber.
+        $this->RegisterPropertyInteger(self::PROP_SPREADWARN, 300);
         // Temperaturspreizung je Modul: 2-5 K sind im Betrieb üblich, deutlich mehr deutet
         // auf ungleiche Kühlung oder einen schlechten Kontakt. Vorgabe bewusst großzügig.
         $this->RegisterPropertyInteger(self::PROP_TEMPSPREADWARN, 8);
@@ -225,6 +228,14 @@ abstract class CellMonitorBase extends IPSModuleStrict
         $minCrit   = $this->ReadPropertyInteger(self::PROP_CELLMINCRIT);
         $spreadMax = $this->ReadPropertyInteger(self::PROP_SPREADWARN);
 
+        $soc     = (int) $this->GetValue('SOC');
+        $current = (float) $this->GetValue('Current');
+
+        // Am Kennlinienende sagt der Absolutwert nichts über die Zelle aus - dort
+        // zählen nur Spannweite und die kritischen Schutzgrenzen (siehe atCurveEnd).
+        $kennlinienende = $this->atCurveEnd($soc);
+        $unterdrueckt   = 0;
+
         $cellsPerModule = count(reset($cellsByModule) ?: []);
         foreach ($cellsByModule as $module => $cells) {
             $min    = min($cells);
@@ -283,12 +294,20 @@ abstract class CellMonitorBase extends IPSModuleStrict
                 if ($mv >= $maxCrit) {
                     $criticals[] = sprintf($this->Translate('Cell %1$d (module %2$d): %3$d mV above protection limit'), $cellNo, $module, $mv);
                 } elseif ($mv >= $maxWarn) {
-                    $warnings[] = sprintf($this->Translate('Cell %1$d (module %2$d): %3$d mV'), $cellNo, $module, $mv);
+                    if ($kennlinienende) {
+                        $unterdrueckt++;
+                    } else {
+                        $warnings[] = sprintf($this->Translate('Cell %1$d (module %2$d): %3$d mV'), $cellNo, $module, $mv);
+                    }
                 }
                 if ($mv > 0 && $mv <= $minCrit) {
                     $criticals[] = sprintf($this->Translate('Cell %1$d (module %2$d): only %3$d mV'), $cellNo, $module, $mv);
                 } elseif ($mv > 0 && $mv <= $minWarn) {
-                    $warnings[] = sprintf($this->Translate('Cell %1$d (module %2$d): only %3$d mV'), $cellNo, $module, $mv);
+                    if ($kennlinienende) {
+                        $unterdrueckt++;
+                    } else {
+                        $warnings[] = sprintf($this->Translate('Cell %1$d (module %2$d): only %3$d mV'), $cellNo, $module, $mv);
+                    }
                 }
             }
             if ($spread >= $spreadMax) {
@@ -298,8 +317,6 @@ abstract class CellMonitorBase extends IPSModuleStrict
             $allCells = array_merge($allCells, $cells);
         }
 
-        $soc     = $this->GetValue('SOC');
-        $current = $this->GetValue('Current');
         $this->SetValue('CellVoltageMax', max($allCells) / 1000);
         $this->SetValue('CellVoltageMin', min($allCells) / 1000);
         $this->SetValue('CellDelta', max($allCells) - min($allCells));
@@ -316,8 +333,8 @@ abstract class CellMonitorBase extends IPSModuleStrict
             $this->SetValue('CellMinNumber', (int) array_search(min($nummerierteZellen), $nummerierteZellen, true));
         }
         $this->SetValue('LastMeasurement', time());
-        $this->SetValue('SOCAtMeasurement', (int) $soc);
-        $this->SetValue('CurrentAtMeasurement', (float) $current);
+        $this->SetValue('SOCAtMeasurement', $soc);
+        $this->SetValue('CurrentAtMeasurement', $current);
 
         if ($this->ReadPropertyBoolean(self::PROP_KEEPRAW)) {
             $this->SetValue('RawData', json_encode([
@@ -330,12 +347,15 @@ abstract class CellMonitorBase extends IPSModuleStrict
         }
 
         $this->SendDebug(__FUNCTION__, sprintf(
-            'Turm: %d-%d mV, Delta %d mV, %d Warnungen, %d kritisch',
+            'Turm: %d-%d mV, Delta %d mV, %d Warnungen, %d kritisch%s',
             min($allCells),
             max($allCells),
             max($allCells) - min($allCells),
             count($warnings),
-            count($criticals)
+            count($criticals),
+            $kennlinienende
+                ? sprintf(' (Kennlinienende bei SOC %d %%: %d Absolutwert-Warnung(en) unterdrückt)', $soc, $unterdrueckt)
+                : ''
         ), 0);
 
         if ($criticals !== [] || $warnings !== []) {
@@ -348,6 +368,34 @@ abstract class CellMonitorBase extends IPSModuleStrict
                 $criticals !== []
             );
         }
+    }
+
+    /**
+     * Steht die Batterie am Lade- oder Entladeschluss?
+     *
+     * Dort ist die absolute Zellspannung kein Merkmal der Zelle, sondern des
+     * Betriebspunkts: Am steilen Ende der LiFePO4-Kennlinie hebt schon der
+     * Innenwiderstand die Klemmenspannung, und wie weit, hängt am Strom des
+     * Augenblicks - bei kräftiger Sonne läuft dieselbe gesunde Zelle höher als
+     * bei schwacher. Eine Warnung auf den Absolutwert käme dort bei jeder
+     * Vollladung erneut und würde damit zum Rauschen, ohne je etwas über den
+     * Zustand der Zelle zu sagen.
+     *
+     * Deshalb ruhen dort nur die beiden Warnstufen auf den Absolutwert. Die
+     * Spannweite je Modul wird weiter geprüft - sie ist am Kennlinienende sogar
+     * die eigentliche Kennzahl -, und die kritischen Schwellen gelten immer:
+     * Sie markieren die Schutzgrenzen der Zelle, die auch am Ladeschluss nicht
+     * erreicht werden sollten.
+     *
+     * Als Marke dienen dieselben SOC-Grenzen, die die automatische Messung
+     * auslösen (0 = aus, dann greift die Ausnahme auf dieser Seite nicht).
+     */
+    private function atCurveEnd(int $soc): bool
+    {
+        $voll = $this->ReadPropertyInteger(self::PROP_AUTOFULLSOC);
+        $leer = $this->ReadPropertyInteger(self::PROP_AUTOEMPTYSOC);
+
+        return ($voll > 0 && $soc >= $voll) || ($leer > 0 && $soc <= $leer);
     }
 
     private function maybeAutoMeasure(int $soc): void

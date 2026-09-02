@@ -203,12 +203,45 @@ Stand 08/2026), Venus E v3:
 - Burkhards vorhandene Venus E 3.0 (am MarstekShellyEmulator) und die geplante
   Zweitbatterie sind die Zielgeräte für den Ersttest.
 
-## Stand und offene Punkte (30.08.2026, 1.0 build 21)
+## Warnlogik: am Kennlinienende zählt der Absolutwert nicht (02.09.2026, build 22)
+
+Anlass war erpes Rückmeldung (`t/144307`, Post 41): Bei ihm meldete das Modul täglich
+Zellspannungen um 3627 mV, gemessen wurden anschließend bis zu 3640 mV — „scheint bei
+mir wohl schon der Normalfall zu sein. Kommt dann wohl auch auf die Solarleistung
+z.Zt. der Vollladung an." Er hat den Mechanismus damit selbst benannt: Am steilen Ende
+der LFP-Kennlinie hebt der Innenwiderstand die Klemmenspannung, und wie weit, bestimmt
+der Ladestrom des Augenblicks — der Absolutwert ist dort ein Merkmal des Betriebspunkts,
+nicht der Zelle. Da die Messung über `AutoFullSOC` **gezielt** am Ladeschluss ausgelöst
+wird, warnte das Modul systematisch im ungünstigsten Moment.
+
+Belege vom HVM des nuc (Archiv, 60 Tage, ausgewertet per `AC_GetLoggedValues`):
+- Modul 3 und 5 erreichten am Ladeschluss **3645/3646 mV** — 4 mV unter der kritischen
+  Schwelle 3650 —, Modul 1 und 2 blieben unter 3400. Spannweiten bis **271 mV**.
+- Die **höchste Zelle wandert**: über 75 Messungen acht verschiedene Nummern
+  (Zelle 1: 15×, Zelle 2: 9×, Zelle 43: 7×, …). Kein Ausreißer, kein Trend in der
+  Spannweite (tagesweise 157–271 mV).
+
+Konsequenz in `processCellVoltages()`: `atCurveEnd($soc)` prüft gegen `AutoFullSOC`/
+`AutoEmptySOC` (0 = Ausnahme auf dieser Seite aus); dort ruhen **nur die beiden
+Warnstufen auf den Absolutwert**. Spannweite, Temperaturspreizung und die **kritischen**
+Schwellen gelten weiter — Letztere markieren die Schutzgrenzen und sollten auch am
+Ladeschluss nicht erreicht werden. Der Debug nennt die Zahl der unterdrückten Warnungen.
+`SpreadWarn` von 250 auf **300 mV** angehoben (271 mV waren unauffällig).
+
+Wirkung auf die eigene Historie: von 6 Warnmeldungen der letzten 60 Tage bleibt **eine** —
+die vom 27.08. bei SOC 94 %, also außerhalb des Kennlinienendes. Genau der Fall, den man
+sehen will.
+
+**Achtung bei Vorgabe-Änderungen:** `RegisterPropertyInteger` wirkt nur auf **neue**
+Instanzen. Bestehende behalten ihre 250 mV und müssen von Hand nachziehen — das gehört
+in jede Releaseinfo zu geänderten Vorgaben.
+
+## Stand und offene Punkte (02.09.2026, 1.1 build 22)
 
 - Beide Module laufen an echter Hardware (BYD am HVM des nuc und am HVS von erpe,
-  Marstek an der Venus E 3.0 in Neustadt). Mit build 21 trägt die Bibliothek die
-  Version **1.0** für die Erstveröffentlichung im Store (Beta-Kanal); Rückmeldungen
-  laufen über das Forumsthema `t/144307`.
+  Marstek an der Venus E 3.0 in Neustadt). Im Store steht **Beta 1.0 #21**
+  (Commit `516437b`); build 22 mit der neuen Warnlogik ist noch nicht veröffentlicht.
+  Rückmeldungen laufen über das Forumsthema `t/144307`.
 - **Noch offen:** Das alte Zellmonitor-Skript **#56646**, die Blockabfrage **#27108**
   und der Dummy-Modul-Zweig auf dem nuc bestehen weiter und sollen durch die
   Modul-Instanz #11890 abgelöst werden. Dabei die **Archiv-Historie der bestehenden

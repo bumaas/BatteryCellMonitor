@@ -153,7 +153,7 @@ jeder Instanz frei einstellbar.
 | Kritisch hoch | 3650 mV | Ladeschlussspannung der Zelle — hier greift der Zellschutz |
 | Warnung niedrig | 2850 mV | unteres Knie der Kennlinie, deutlich vor der Abschaltung |
 | Kritisch niedrig | 2600 mV | Tiefentladebereich |
-| Spannweite je Modul | 250 mV | großzügig, weil am Ladeschluss gemessen wird |
+| Spannweite je Modul | 300 mV | großzügig, weil am Ladeschluss gemessen wird |
 | Temperaturspreizung | 8 K | 2–5 K sind im Betrieb üblich |
 
 Das BMS schützt die Zellen selbst; die Hinweise dienen der **Früherkennung**,
@@ -161,11 +161,46 @@ nicht dem Schutz. Deshalb kann das Modul warnen, während die App oder das Porta
 des Herstellers schweigt: Dort schlägt erst die eigene Schutzschwelle an, die
 höher liegt.
 
-Eine einzelne Zelle knapp über der Warnschwelle ist am Ladeschluss für sich
-genommen kein Defekt — am steilen Ende laufen die Zellen naturgemäß auseinander,
-und das BMS fängt sie ab. Kommt die Meldung dagegen täglich, gehört die
-Warnschwelle angehoben (etwa auf 3600 mV), statt die Meldungen zu ignorieren;
-die Aufmerksamkeit gilt dann der Spannweite und ihrer Entwicklung.
+### Am Lade- und Entladeschluss ruhen die Absolutwarnungen
+
+Genau dort, wo das Modul misst, ist die absolute Zellspannung kein Merkmal der
+Zelle mehr, sondern des Betriebspunkts: Am steilen Ende der Kennlinie hebt schon
+der Innenwiderstand die Klemmenspannung, und wie weit, hängt am Ladestrom des
+Augenblicks — bei kräftiger Sonne läuft dieselbe gesunde Zelle höher als bei
+schwacher. Eine Warnung darauf käme bei jeder Vollladung erneut und würde
+dadurch zum Rauschen, ohne je etwas über den Zustand der Zelle zu sagen.
+
+Deshalb prüft das Modul die beiden **Warn**schwellen auf den Absolutwert nur
+außerhalb der Enden. Als Marke dienen dieselben SOC-Grenzen, die die
+automatische Messung auslösen (Vorgabe: ab 99 % bzw. bis 5 %; eine auf 0
+gesetzte Grenze schaltet die Ausnahme auf ihrer Seite ab). Unberührt bleiben:
+
+- die **Spannweite je Modul** — am Kennlinienende sogar die eigentliche Kennzahl,
+- die **kritischen Schwellen**, die die Schutzgrenzen der Zelle markieren und
+  auch am Ladeschluss nicht erreicht werden sollten,
+- die **Temperaturspreizung**.
+
+Das Debug-Fenster weist eine solche Unterdrückung aus („Kennlinienende bei SOC
+99 %: 3 Absolutwert-Warnung(en) unterdrückt"), damit nachvollziehbar bleibt,
+warum es still war.
+
+### Worauf man stattdessen schaut
+
+Ein einzelner Messwert taugt nicht zur Beurteilung — zwei Verlaufsfragen dagegen
+schon, und beide beantworten die protokollierten Variablen:
+
+- **Bleibt dieselbe Zelle oben?** `CellMaxNumber` nennt die Nummer der höchsten
+  Zelle. Wandert sie von Messung zu Messung, ist das Entwarnung: Dann liegt
+  keine Zelle dauerhaft vorn. Zeigt sie über Wochen auf dieselbe Nummer, lohnt
+  der genaue Blick auf deren Modul.
+- **Wächst die Spannweite?** Nicht ihr Wert an einem Tag zählt, sondern der
+  Trend über Monate bei vergleichbarem SOC. Eine Zelle, die Kapazität verliert,
+  läuft am Ladeschluss immer früher und immer weiter davon.
+
+Zur Einordnung die Werte einer gesunden Anlage (HVM, 5 Module, 60 Tage): Die
+höchste Zelle wechselte über 75 Messungen zwischen acht verschiedenen Nummern,
+die Modulspannweite schwankte tagesweise zwischen 157 und 271 mV ohne jede
+Richtung, und einzelne Zellen erreichten am Ladeschluss bis zu 3646 mV.
 
 ## Fehlersuche
 
@@ -178,8 +213,12 @@ die Aufmerksamkeit gilt dann der Spannweite und ihrer Entwicklung.
   stammen aus dem Statusblock und haben dort nur 10-mV-Auflösung; bei einem engen
   Turm fallen sie zusammen. Die feinen Werte je Modul entstehen bei einer Zellmessung.
 - **Warnung, obwohl die Hersteller-App nichts meldet:** erwartbar. Die Vorgaben
-  liegen bewusst unter den Schutzschwellen des BMS (siehe „Schwellwerte"); eine
-  Zelle knapp über der Warnschwelle ist am Ladeschluss normal.
+  liegen bewusst unter den Schutzschwellen des BMS (siehe „Schwellwerte").
+- **Hohe Zellspannung, aber keine Meldung:** kein Fehler, sondern Absicht. Am
+  Lade- und Entladeschluss ruhen die Warnungen auf den Absolutwert, weil er dort
+  vom Ladestrom bestimmt wird und nichts über die Zelle aussagt; geprüft werden
+  weiterhin Spannweite und Schutzgrenzen (siehe „Schwellwerte"). Das
+  Debug-Fenster nennt die Zahl der unterdrückten Warnungen.
 - **Statuswerte bei mehreren Türmen identisch:** richtig so. SOC, SOH, Strom und die
   Energiezähler kommen aus dem BMU-Statusblock und gelten für die ganze Battery-Box;
   turmspezifisch sind nur die Werte aus der Zellmessung.
