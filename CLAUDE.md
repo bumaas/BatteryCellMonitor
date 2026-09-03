@@ -249,17 +249,16 @@ in jede Releaseinfo zu geänderten Vorgaben.
   noch nicht — nach der Beta-Regel wären 1–2 Wochen ohne Fehlermeldungen abzuwarten,
   hier zusätzlich erpes Rückmeldung zur neuen Warnlogik. Rückmeldungen laufen über
   das Forumsthema `t/144307`.
-- **Ablösung von #27108 (geprüft 03.09.2026):** Alle fünf geloggten Altvariablen
-  liegen deckungsgleich im Ziel (Zell-Delta dabei von V auf mV umgestellt, die
-  beiden Energien im Ziel als Aggregationstyp „Zähler"). Mit build 23 liefert das
-  Modul zusätzlich **BMU-Temperatur** und **Ausgangsspannung**. Ohne Entsprechung
-  bleiben allein Stammdaten: BMS-/BMU-Version, Battery Type, Inverter, Application,
-  Config Word, Anzahl BMS/Module — letztere kennt das Modul intern
-  (`detectConfiguration()`, Attribute), zeigt sie aber nicht an.
-  Vor dem Löschen von #27108 muss das alte Skript **#56646** mit weg: es
-  referenziert `STROM_ID` 25367 und `FEHLER_ID` 31727 von dort (seine Ereignisse
-  sind seit 28.08.2026 inaktiv). Weitere Referenzen bestehen nicht — Links,
-  Ereignisse, Instanzkonfigurationen und Skriptdateien wurden geprüft.
+- **Ablösung von #27108 abgeschlossen (03.09.2026):** Blockabfrage #27108, das alte
+  Skript #56646, ModBus Gateway #51186 mit den vier `BYD_BMS_*`-Adressen,
+  `BYD_BATTERY_DEVICE` #50731 und der zugehörige Client Socket #24354 sind gelöscht.
+  Auf die BCU (192.168.178.24:8080) hält nur noch der Client Socket #34193 des
+  Zellmonitors eine Verbindung. Vor dem Löschen lagen alle fünf geloggten Altvariablen
+  deckungsgleich im Ziel (Zell-Delta dabei von V auf mV umgestellt, die beiden Energien
+  im Ziel als Aggregationstyp „Zähler"), und build 23 ergänzte **BMU-Temperatur** und
+  **Ausgangsspannung**. Ohne Entsprechung blieben allein Stammdaten: BMS-/BMU-Version,
+  Battery Type, Inverter, Application, Config Word, Anzahl BMS/Module — Letztere kennt
+  das Modul intern (`detectConfiguration()`, Attribute), zeigt sie aber nicht an.
 - Optimierung Marstek: `readStatusValues()` liest sechs Einzelblöcke (2,3 s je Poll);
   Bündeln zusammenhängender Register wäre der nächste Schritt.
 - Referenz-Checkliste für eigene Module: `T:\modules\BlindControl` (CI und
