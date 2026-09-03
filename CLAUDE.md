@@ -244,8 +244,8 @@ in jede Releaseinfo zu geänderten Vorgaben.
 ## Stand und offene Punkte (03.09.2026, 1.2 build 23)
 
 - Beide Module laufen an echter Hardware (BYD am HVM des nuc und am HVS von erpe,
-  Marstek an der Venus E 3.0 in Neustadt). Im Store steht **Beta 1.1 #22**
-  (Commit `210cf4e`, veröffentlicht 02.09.2026, Release-ID 18160). Stable gibt es
+  Marstek an der Venus E 3.0 in Neustadt). Im Store steht **Beta 1.2 #23**
+  (Commit `be1ce4c`, veröffentlicht 03.09.2026, Release-ID 18163). Stable gibt es
   noch nicht — nach der Beta-Regel wären 1–2 Wochen ohne Fehlermeldungen abzuwarten,
   hier zusätzlich erpes Rückmeldung zur neuen Warnlogik. Rückmeldungen laufen über
   das Forumsthema `t/144307`.
