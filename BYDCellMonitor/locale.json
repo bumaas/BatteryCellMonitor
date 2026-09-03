@@ -54,6 +54,8 @@
             "Module %1$d: spread %2$d mV": "Modul %1$d: Spannweite %2$d mV",
             "Cell monitor: CRITICAL": "Zellmonitor: KRITISCH",
             "Cell monitor: warning": "Zellmonitor: Warnung",
+            "BMU firmware": "BMU-Firmware",
+            "BMS firmware": "BMS-Firmware",
             "Battery voltage": "Batteriespannung",
             "State of health": "Gesundheitszustand (SOH)",
             "BMU temperature": "BMU-Temperatur",

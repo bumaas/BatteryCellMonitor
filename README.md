@@ -100,6 +100,10 @@ Batteriespannung, SOH bzw. Leistung, Max./Min. Zellspannung, Zell-Delta,
 Zelltemperaturen, Fehler-/Alarm-Bits sowie beim BYD die von der BMU gezählte
 geladene und entladene Energie, die BMU-Temperatur und die Ausgangsspannung.
 
+Beim BYD stehen ganz oben zwei Stammdaten der BCU: **BMU-Firmware** und
+**BMS-Firmware** (etwa `V3.26` / `V3.31`). Das Modul liest sie beim ersten Lauf
+und danach einmal am Tag — ein Firmware-Update der Batterie fällt so von selbst auf.
+
 Je Zellmessung: pro Modul **Min/Max/Spannweite** (und Max-Temperatur), dazu
 Turm-weit „Letzte Zellmessung", „SOC bei Messung", „Strom bei Messung" und
 „Letzter Hinweis" (Text der letzten Schwellwert-Meldung).

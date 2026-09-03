@@ -87,7 +87,8 @@ Die eigentliche Verifikation ist eine Messung an echter Hardware (siehe oben).
   Archiv-Logging für **neu angelegte** numerische Variablen und schaltet mit
   `$counter = true` die Aggregation „Zähler" (für monoton steigende Werte wie die
   BMU-Energien, damit Tages-/Monatswerte als Differenz statt als Mittel entstehen).
-- Positionen: 10er = Statuswerte, 16/17 = Zellnummern, 20er = Zellspannung/-temperatur,
+- Positionen: **1–9 = Gerätestammdaten** (BYD: 1/2 = BMU-/BMS-Firmware),
+  10er = Statuswerte, 16/17 = Zellnummern, 20er = Zellspannung/-temperatur,
   `30 + Modul*10` = Werte je Modul, 80er = Angaben zur Messung, 90er = Hinweistexte.
 - Idents und `Translate()`-Texte englisch, Anzeigetexte über `locale.json`.
 - Keine Legacy-Profile (`IPS_CreateVariableProfile`/`RegisterProfile`) — Presentations.
@@ -130,8 +131,22 @@ Protokoll nach sarnau/BYD-Battery-Box-Infos, am 25.08.2026 verifiziert:
   Lade-/Entladezyklen geführt, sind aber Zähler — 28.08.2026 geeicht).
   Die Skalierung von Wort 8 und 16 stammt aus der abgelösten Blockabfrage
   #27108 (`Addresses`: Factor 0 bzw. 0,01); ausgewertet seit 1.2 build 23.
-- Infoblock Register 14–17: BMS-Version, Config Word (Bits 0–3 Modulzahl,
-  4–7 BMS-Anzahl), Batterietyp.
+- **Infoblock Register 0–17** (ohne Handshake, 03.09.2026 am HVM des nuc gelesen):
+  Register 0–11 Seriennummer (ASCII, `P030T020Z2007101231`), **12 = BMU-Firmware**,
+  13 = eine dritte Versionsangabe unklarer Bedeutung (dort V3.22),
+  **14 = BMS-Firmware**, 16 = Config Word (Bits 0–3 Modulzahl, 4–7 BMS-Anzahl),
+  17 = Batterietyp. Versionsformat: High-Byte = Haupt-, Low-Byte = Nebenversion
+  (0x031A = V3.26). Seit 1.3 build 24 führt das Modul BMU- und BMS-Firmware als
+  Variablen (`detectConfiguration()`, beim ersten Lauf und danach täglich).
+- **Firmware-Stand:** Der HVM des nuc hat **BMU V3.26 / BMS V3.31** — das Paar, das BYD
+  seit 03/2025 ausliefert; ein neuerer Stand ist weder bei EFT-Systems (deutscher
+  Servicepartner) noch im Photovoltaikforum dokumentiert (geprüft 03.09.2026). Einen
+  offiziellen Changelog gibt es nicht; die Verteilung läuft automatisch über die
+  Internetverbindung der BCU bzw. Be Connect.
+- **Die BCU lässt nur einen ModBus-Client zu.** Eine zweite TCP-Verbindung wird zwar
+  angenommen, aber nicht bedient (Lesungen laufen in den Timeout). Wer neben dem Modul
+  selbst messen will, muss den Client Socket kurz schließen
+  (`IPS_SetProperty($sock, 'Open', false)` + `IPS_ApplyChanges`) und danach wieder öffnen.
 - **FC16-Kombi-Writes lehnt die BMU ab** — nur einzelne FC06.
 - **Wort 17/19 sind Energiezähler, keine Zyklen** (geklärt 28.08.2026, build 14).
   sarnaus Deutung „Charge Cycles / Discharge Cycles" (0x0511/0x0513) führt in die

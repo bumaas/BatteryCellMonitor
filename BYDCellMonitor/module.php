@@ -37,7 +37,8 @@ class BYDCellMonitor extends CellMonitorBase
     private const int REG_STATUS      = 0x0551; // 1361 (FC03)
     private const int REG_WINDOW      = 0x0558; // 1368
     private const int REG_STATUSBLOCK = 0x0500; // 1280: SOC, Zellspannungen min/max, SOH, Strom, ...
-    private const int REG_INFOBLOCK   = 14;     // 14-17: BMS-Version, ?, Config Word, Batterietyp
+    private const int REG_INFOBLOCK   = 12;     // 12-17: BMU-Version, ?, BMS-Version, -, Config Word, Batterietyp
+    private const int INFOBLOCK_SIZE  = 6;
 
     private const int CMD_START        = 0x8100;
     private const int STATUS_READY     = 0x8801;
@@ -71,6 +72,14 @@ class BYDCellMonitor extends CellMonitorBase
 
     protected function registerVendorVariables(): void
     {
+        // Stammdaten der BCU (Position 1-9); sie stehen im Infoblock und ändern sich nur
+        // bei einem Firmware-Update.
+        $this->ensureVariable('BMUVersion', $this->Translate('BMU firmware'), VARIABLETYPE_STRING, [
+            'PRESENTATION' => VARIABLE_PRESENTATION_VALUE_PRESENTATION,
+        ], 1);
+        $this->ensureVariable('BMSVersion', $this->Translate('BMS firmware'), VARIABLETYPE_STRING, [
+            'PRESENTATION' => VARIABLE_PRESENTATION_VALUE_PRESENTATION,
+        ], 2);
         $this->ensureVariable('BatteryVoltage', $this->Translate('Battery voltage'), VARIABLETYPE_FLOAT, [
             'PRESENTATION' => VARIABLE_PRESENTATION_VALUE_PRESENTATION, 'SUFFIX' => ' V', 'DIGITS' => 1,
         ], 12);
@@ -143,7 +152,9 @@ class BYDCellMonitor extends CellMonitorBase
             $this->LogMessage(sprintf('BMU meldet Fehler-Bitmask 0x%X', $words[13]), KL_ERROR);
         }
 
-        if ($this->ReadAttributeInteger(self::ATTR_DETECTEDMODULES) === 0) {
+        // Stammdaten beim ersten Lauf holen und danach täglich auffrischen - so taucht auch
+        // ein Firmware-Update der BCU von selbst in den Variablen auf.
+        if ($this->ReadAttributeInteger(self::ATTR_DETECTEDMODULES) === 0 || $this->stammdatenVeraltet()) {
             $this->detectConfiguration();
         }
 
@@ -349,29 +360,54 @@ class BYDCellMonitor extends CellMonitorBase
         return $detected > 0 ? $detected : 5;
     }
 
-    /** Config Word (Register 16) auswerten: Bits 0-3 = Modulzahl, 4-7 = BMS-Anzahl. */
+    /** Stammdaten noch nie oder länger als einen Tag nicht gelesen? */
+    private function stammdatenVeraltet(): bool
+    {
+        $id = @$this->GetIDForIdent('BMUVersion');
+        if ($id === false) {
+            return true;
+        }
+        return IPS_GetVariable($id)['VariableUpdated'] < time() - 86400;
+    }
+
+    /**
+     * Infoblock (Register 12-17) auswerten: Firmware-Versionen, Config Word (Bits 0-3 =
+     * Modulzahl, 4-7 = BMS-Anzahl) und Batterietyp. Register 13 trägt eine dritte
+     * Versionsangabe, deren Bedeutung offen ist (am HVM V3.22) - sie bleibt ungenutzt.
+     */
     private function detectConfiguration(): void
     {
-        $words = $this->readHoldingRegisters(self::REG_INFOBLOCK, 4);
+        $words = $this->withBusLock(
+            fn(): ?array => $this->readHoldingRegisters(self::REG_INFOBLOCK, self::INFOBLOCK_SIZE)
+        );
         if (!is_array($words)) {
             return;
         }
-        $modules = $words[2] & 0x0F;
-        $bms     = ($words[2] >> 4) & 0x0F;
+        $this->SetValue('BMUVersion', self::formatVersion($words[0]));
+        $this->SetValue('BMSVersion', self::formatVersion($words[2]));
+
+        $modules = $words[4] & 0x0F;
+        $bms     = ($words[4] >> 4) & 0x0F;
         if ($bms > 0) {
             $this->WriteAttributeInteger(self::ATTR_DETECTEDBMS, $bms);
         }
         if ($modules > 0) {
             $this->WriteAttributeInteger(self::ATTR_DETECTEDMODULES, $modules);
-            $this->SendDebug(__FUNCTION__, sprintf(
-                'Erkannt: %d Module, %d BMS, Batterietyp 0x%02X, BMS-Version V%d.%d',
-                $modules,
-                ($words[2] >> 4) & 0x0F,
-                $words[3] & 0xFF,
-                $words[0] >> 8,
-                $words[0] & 0xFF
-            ), 0);
         }
+        $this->SendDebug(__FUNCTION__, sprintf(
+            'Erkannt: %d Module, %d BMS, Batterietyp 0x%02X, BMU %s, BMS %s',
+            $modules,
+            $bms,
+            $words[5] & 0xFF,
+            self::formatVersion($words[0]),
+            self::formatVersion($words[2])
+        ), 0);
+    }
+
+    /** Versionswort der BCU: High-Byte = Haupt-, Low-Byte = Nebenversion (0x031A = V3.26). */
+    private static function formatVersion(int $word): string
+    {
+        return sprintf('V%d.%d', $word >> 8, $word & 0xFF);
     }
 
     /**
