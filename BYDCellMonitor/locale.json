@@ -56,6 +56,8 @@
             "Cell monitor: warning": "Zellmonitor: Warnung",
             "Battery voltage": "Batteriespannung",
             "State of health": "Gesundheitszustand (SOH)",
+            "BMU temperature": "BMU-Temperatur",
+            "Output voltage": "Ausgangsspannung",
             "Max cell temperature": "Max. Zelltemperatur",
             "Min cell temperature": "Min. Zelltemperatur",
             "Error bitmask": "Fehler-Bitmask",

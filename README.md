@@ -98,7 +98,7 @@ zwei Abnehmer am selben Socket stören sich gegenseitig.
 Statuswerte (je nach Gerät): Ladezustand, Batteriestrom (negativ = Laden),
 Batteriespannung, SOH bzw. Leistung, Max./Min. Zellspannung, Zell-Delta,
 Zelltemperaturen, Fehler-/Alarm-Bits sowie beim BYD die von der BMU gezählte
-geladene und entladene Energie.
+geladene und entladene Energie, die BMU-Temperatur und die Ausgangsspannung.
 
 Je Zellmessung: pro Modul **Min/Max/Spannweite** (und Max-Temperatur), dazu
 Turm-weit „Letzte Zellmessung", „SOC bei Messung", „Strom bei Messung" und

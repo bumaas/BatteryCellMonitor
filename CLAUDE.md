@@ -124,7 +124,12 @@ Protokoll nach sarnau/BYD-Battery-Box-Infos, am 25.08.2026 verifiziert:
   4 Worte je Modul), Seriennummer Wort 33–44 (ASCII).
 - Statusblock **0x0500 (1280), 20 Worte, ohne Handshake**: SOC, Max/Min-Zell-
   spannung ×0,01, SOH, Strom ×0,1 signed (negativ = Laden), Batteriespannung
-  ×0,01, Zelltemperaturen, Wort 13 = Fehler-Bitmask, Wort 17 = Ladezyklen.
+  ×0,01, Zelltemperaturen, **Wort 8 = BMU-Temperatur** (Elektronik, roh),
+  Wort 13 = Fehler-Bitmask, **Wort 16 = Ausgangsspannung ×0,01**,
+  Worte 17/19 = geladene/entladene Energie ×0,1 kWh (in der Literatur als
+  Lade-/Entladezyklen geführt, sind aber Zähler — 28.08.2026 geeicht).
+  Die Skalierung von Wort 8 und 16 stammt aus der abgelösten Blockabfrage
+  #27108 (`Addresses`: Factor 0 bzw. 0,01); ausgewertet seit 1.2 build 23.
 - Infoblock Register 14–17: BMS-Version, Config Word (Bits 0–3 Modulzahl,
   4–7 BMS-Anzahl), Batterietyp.
 - **FC16-Kombi-Writes lehnt die BMU ab** — nur einzelne FC06.
@@ -236,7 +241,7 @@ sehen will.
 Instanzen. Bestehende behalten ihre 250 mV und müssen von Hand nachziehen — das gehört
 in jede Releaseinfo zu geänderten Vorgaben.
 
-## Stand und offene Punkte (02.09.2026, 1.1 build 22)
+## Stand und offene Punkte (03.09.2026, 1.2 build 23)
 
 - Beide Module laufen an echter Hardware (BYD am HVM des nuc und am HVS von erpe,
   Marstek an der Venus E 3.0 in Neustadt). Im Store steht **Beta 1.1 #22**
@@ -244,10 +249,17 @@ in jede Releaseinfo zu geänderten Vorgaben.
   noch nicht — nach der Beta-Regel wären 1–2 Wochen ohne Fehlermeldungen abzuwarten,
   hier zusätzlich erpes Rückmeldung zur neuen Warnlogik. Rückmeldungen laufen über
   das Forumsthema `t/144307`.
-- **Noch offen:** Das alte Zellmonitor-Skript **#56646**, die Blockabfrage **#27108**
-  und der Dummy-Modul-Zweig auf dem nuc bestehen weiter und sollen durch die
-  Modul-Instanz #11890 abgelöst werden. Dabei die **Archiv-Historie der bestehenden
-  Variablen** beachten — eher Variablen umziehen als neu anlegen.
+- **Ablösung von #27108 (geprüft 03.09.2026):** Alle fünf geloggten Altvariablen
+  liegen deckungsgleich im Ziel (Zell-Delta dabei von V auf mV umgestellt, die
+  beiden Energien im Ziel als Aggregationstyp „Zähler"). Mit build 23 liefert das
+  Modul zusätzlich **BMU-Temperatur** und **Ausgangsspannung**. Ohne Entsprechung
+  bleiben allein Stammdaten: BMS-/BMU-Version, Battery Type, Inverter, Application,
+  Config Word, Anzahl BMS/Module — letztere kennt das Modul intern
+  (`detectConfiguration()`, Attribute), zeigt sie aber nicht an.
+  Vor dem Löschen von #27108 muss das alte Skript **#56646** mit weg: es
+  referenziert `STROM_ID` 25367 und `FEHLER_ID` 31727 von dort (seine Ereignisse
+  sind seit 28.08.2026 inaktiv). Weitere Referenzen bestehen nicht — Links,
+  Ereignisse, Instanzkonfigurationen und Skriptdateien wurden geprüft.
 - Optimierung Marstek: `readStatusValues()` liest sechs Einzelblöcke (2,3 s je Poll);
   Bündeln zusammenhängender Register wäre der nächste Schritt.
 - Referenz-Checkliste für eigene Module: `T:\modules\BlindControl` (CI und

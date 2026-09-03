@@ -77,6 +77,12 @@ class BYDCellMonitor extends CellMonitorBase
         $this->ensureVariable('SOH', $this->Translate('State of health'), VARIABLETYPE_INTEGER, [
             'PRESENTATION' => VARIABLE_PRESENTATION_VALUE_PRESENTATION, 'SUFFIX' => ' %', 'DIGITS' => 0,
         ], 13);
+        $this->ensureVariable('InternalTemp', $this->Translate('BMU temperature'), VARIABLETYPE_INTEGER, [
+            'PRESENTATION' => VARIABLE_PRESENTATION_VALUE_PRESENTATION, 'SUFFIX' => ' °C', 'DIGITS' => 0,
+        ], 14);
+        $this->ensureVariable('OutputVoltage', $this->Translate('Output voltage'), VARIABLETYPE_FLOAT, [
+            'PRESENTATION' => VARIABLE_PRESENTATION_VALUE_PRESENTATION, 'SUFFIX' => ' V', 'DIGITS' => 1,
+        ], 15);
         $this->ensureVariable('CellTempMax', $this->Translate('Max cell temperature'), VARIABLETYPE_INTEGER, [
             'PRESENTATION' => VARIABLE_PRESENTATION_VALUE_PRESENTATION, 'SUFFIX' => ' °C', 'DIGITS' => 0,
         ], 23);
@@ -120,6 +126,10 @@ class BYDCellMonitor extends CellMonitorBase
         $this->SetValue('BatteryVoltage', $words[5] / 100);
         $this->SetValue('CellTempMax', self::toSigned16($words[6]));
         $this->SetValue('CellTempMin', self::toSigned16($words[7]));
+        // Wort 8 = Reg. 1288 (BMU-Elektronik, nicht die Zellen), Wort 16 = Reg. 1296.
+        // Skalierung wie in der abgelösten Blockabfrage: Temperatur roh, Spannung x0,01 V.
+        $this->SetValue('InternalTemp', self::toSigned16($words[8]));
+        $this->SetValue('OutputVoltage', $words[16] / 100);
         $this->SetValue('ErrorBitmask', $words[13]);
 
         // Wort 17/19 gelten in der Literatur als Lade- bzw. Entladezyklen, sind aber
