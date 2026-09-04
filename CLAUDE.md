@@ -167,6 +167,17 @@ Protokoll nach sarnau/BYD-Battery-Box-Infos, am 25.08.2026 verifiziert:
   **25** = SOH. Beleg: Türme mit 33,0/28,3 % gegen Be Connect 32,6/27,7 %.
   Seit build 16 holt der Statuspoll diese Werte turmgenau, sobald die Box mehr als ein
   BMS meldet (Config Word); die Handshake-Logik steckt dafür in `readWindow()`.
+- **Je Wert genau eine Quelle** (build 25/26, Anlass `t/144307` Beitrag 48): Die beiden
+  Ebenen dürfen sich dieselbe Variable nicht teilen — sonst steht im Archiv ein Sägezahn
+  aus zwei Werten im Abstand des Handshakes (bei erpe 3,330 V aus dem Statusblock gegen
+  3,336 V aus der Turmlesung, zwei Sekunden auseinander). Regel seither: Bei **einem** Turm
+  schreibt allein der Statusblock, bei **mehreren** allein die Turmlesung. Scheitert deren
+  Handshake — im Betrieb regelmäßig, weil die BCU nur einen ModBus-Client bedient —,
+  bleiben die Turmvariablen auf ihrem letzten Stand und `readStatusValues()` meldet `null`;
+  ein Rückfall auf die Box-Werte wäre derselbe Sägezahn, nur seltener. Boxweite Werte
+  (Strom, BMU-Temperatur, Ausgangsspannung, Fehler-Bitmask, Energiezähler) sind davon
+  unberührt und werden immer geschrieben. Regressionstest:
+  `tests/check-tower-status-writes.php`.
 - **Seriennummer beginnt bei Wort 33, nicht 34** (Korrektur 28.08.2026): erpes Nummer
   lautet `P030T020Z2308311111`, gelesen wurde `30T020Z…` — das führende Wort 33
   (0x5030 = „P0") fehlte. Rechts füllt die BMU mit „x" auf; das wird abgeschnitten.

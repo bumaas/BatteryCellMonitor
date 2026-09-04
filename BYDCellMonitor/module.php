@@ -157,21 +157,29 @@ class BYDCellMonitor extends CellMonitorBase
         // Handshakes, was im Archiv als Sägezahn erscheint (Forum t/144307, Beitrag 48).
         if ($this->bmsCount() > 1) {
             $eigener = $this->readTowerStatus();
-            if ($eigener !== null) {
-                return $eigener;
+            if ($eigener === null) {
+                // Der Handshake scheitert im Betrieb regelmäßig - die BCU bedient nur einen
+                // ModBus-Client, und zwei Turminstanzen teilen sich den Socket. Die Box-Werte
+                // sind dann kein Ersatz: SOC und SOH gelten für die ganze Box (bei erpe 30 %
+                // gegen 33 % des Turms), die Zellspannungen nur im 10-mV-Raster. Sie
+                // einzutragen hieße, den Sägezahn aus zwei Quellen nur seltener zu erzeugen.
+                // Die Turmvariablen behalten deshalb ihren letzten gültigen Stand.
+                $this->SendDebug(__FUNCTION__, 'Turmlesung fehlgeschlagen - Turmwerte bleiben unverändert', 0);
+                return null;
             }
+            return $eigener;
         }
-        // Ein Turm - oder die Turmlesung ist ausgefallen: dann sind die Box-Werte die
-        // beste verfügbare Auskunft über diesen Turm.
+        // Ein Turm: der boxweite Block beschreibt genau diesen Turm und ist die einzige Quelle.
         $this->writeTowerValuesFromStatusBlock($words);
         return $soc;
     }
 
     /**
-     * Turmabhängige Werte aus dem boxweiten Statusblock übernehmen. Bei einer Box mit einem
-     * Turm ist er die einzige Quelle; bei mehreren springt er nur ein, wenn der Handshake
-     * für die Turmlesung nicht zustande kam. Die BMU liefert die Zellspannungen hier nur in
-     * 10-mV-Schritten - Min und Max fallen deshalb bei enger Spannweite zusammen.
+     * Turmabhängige Werte aus dem boxweiten Statusblock übernehmen. Nur für eine Box mit
+     * einem einzigen Turm - dort beschreibt der Block genau diesen Turm. Bei mehreren Türmen
+     * springt er nicht ein; seine Werte gälten sonst für die ganze Box. Die BMU liefert die
+     * Zellspannungen hier nur in 10-mV-Schritten - Min und Max fallen deshalb bei enger
+     * Spannweite zusammen.
      */
     private function writeTowerValuesFromStatusBlock(array $words): void
     {

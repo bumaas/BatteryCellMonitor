@@ -302,17 +302,24 @@ pruefe('Geladene Energie kommt aus dem Statusblock', [5112.4], schreibungen($mod
 
 // -- Fall 2: zwei Türme, Turmlesung scheitert -------------------------------
 
+// Der Handshake scheitert im Betrieb regelmäßig (die BCU bedient nur einen ModBus-Client,
+// zwei Turminstanzen teilen sich den Socket). Die Box-Werte sind dann KEIN Ersatz: SOC und
+// SOH gelten für die ganze Box, die Zellspannungen nur im 10-mV-Raster. Würden sie
+// einspringen, stünde im Archiv weiterhin ein Sägezahn aus zwei Quellen - nur seltener.
 echo "== Zwei Türme, Turmlesung scheitert ==\n";
 $modul = baueModul($statusblock, null, 2);
 $soc   = $modul->statusLesen();
 
-pruefe('Rückgabe fällt auf den Box-SOC zurück', 28, $soc);
+pruefe('Rückgabe meldet den Fehlschlag', null, $soc);
+pruefe('Fensterblock wurde versucht', 1, $modul->windowCalls);
 foreach (TURMWERTE as $ident) {
+    pruefe(sprintf('%s bleibt unangetastet', $ident), 0, count(schreibungen($modul, $ident)));
+}
+// Die boxweiten Werte stehen unabhängig vom Turm fest und werden trotzdem geschrieben.
+foreach (BOXWERTE as $ident) {
     pruefe(sprintf('%s wird genau einmal geschrieben', $ident), 1, count(schreibungen($modul, $ident)));
 }
-pruefe('CellVoltageMax kommt aus dem Statusblock', [3.22], schreibungen($modul, 'CellVoltageMax'));
-pruefe('CellDelta kommt aus dem Statusblock', [50], schreibungen($modul, 'CellDelta'));
-pruefe('BatteryVoltage kommt aus dem Statusblock', [255.9], schreibungen($modul, 'BatteryVoltage'));
+pruefe('Strom kommt weiter aus dem Statusblock', [4.5], schreibungen($modul, 'Current'));
 
 // -- Fall 3: ein Turm -------------------------------------------------------
 
