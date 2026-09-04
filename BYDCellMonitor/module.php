@@ -124,17 +124,9 @@ class BYDCellMonitor extends CellMonitorBase
             return null;
         }
         // Dieser Block gilt für die ganze Battery-Box (in Be Connect Plus die Seite
-        // "Information": SOC als Mittel, Strom als Summe aller Türme). Bei mehreren Türmen
-        // werden SOC, SOH, Zellspannungen und Temperaturen unten turmgenau überschrieben.
-        $this->SetValue('SOC', $soc);
-        $this->SetValue('CellVoltageMax', $words[1] / 100);
-        $this->SetValue('CellVoltageMin', $words[2] / 100);
-        $this->SetValue('CellDelta', ($words[1] - $words[2]) * 10);
-        $this->SetValue('SOH', $words[3]);
+        // "Information": SOC als Mittel, Strom als Summe aller Türme). Was nur hier steht,
+        // wird sofort geschrieben; die turmabhängigen Werte folgen weiter unten.
         $this->SetValue('Current', self::toSigned16($words[4]) / 10);
-        $this->SetValue('BatteryVoltage', $words[5] / 100);
-        $this->SetValue('CellTempMax', self::toSigned16($words[6]));
-        $this->SetValue('CellTempMin', self::toSigned16($words[7]));
         // Wort 8 = Reg. 1288 (BMU-Elektronik, nicht die Zellen), Wort 16 = Reg. 1296.
         // Skalierung wie in der abgelösten Blockabfrage: Temperatur roh, Spannung x0,01 V.
         $this->SetValue('InternalTemp', self::toSigned16($words[8]));
@@ -160,13 +152,37 @@ class BYDCellMonitor extends CellMonitorBase
 
         // Mehrturm-Anlage: die Werte dieses Turms holen (Be Connect Plus zeigt sie nach dem
         // Umschalten auf BMS1/BMS2 - sie stehen im Fensterblock hinter dem Handshake).
+        // Die Turmlesung ist die feinere Quelle (mV statt 10-mV-Raster der BMU) und die
+        // einzige, die schreibt - sonst bekäme jede Abfrage zwei Werte im Abstand des
+        // Handshakes, was im Archiv als Sägezahn erscheint (Forum t/144307, Beitrag 48).
         if ($this->bmsCount() > 1) {
             $eigener = $this->readTowerStatus();
             if ($eigener !== null) {
-                $soc = $eigener;
+                return $eigener;
             }
         }
+        // Ein Turm - oder die Turmlesung ist ausgefallen: dann sind die Box-Werte die
+        // beste verfügbare Auskunft über diesen Turm.
+        $this->writeTowerValuesFromStatusBlock($words);
         return $soc;
+    }
+
+    /**
+     * Turmabhängige Werte aus dem boxweiten Statusblock übernehmen. Bei einer Box mit einem
+     * Turm ist er die einzige Quelle; bei mehreren springt er nur ein, wenn der Handshake
+     * für die Turmlesung nicht zustande kam. Die BMU liefert die Zellspannungen hier nur in
+     * 10-mV-Schritten - Min und Max fallen deshalb bei enger Spannweite zusammen.
+     */
+    private function writeTowerValuesFromStatusBlock(array $words): void
+    {
+        $this->SetValue('SOC', $words[0]);
+        $this->SetValue('CellVoltageMax', $words[1] / 100);
+        $this->SetValue('CellVoltageMin', $words[2] / 100);
+        $this->SetValue('CellDelta', ($words[1] - $words[2]) * 10);
+        $this->SetValue('SOH', $words[3]);
+        $this->SetValue('BatteryVoltage', $words[5] / 100);
+        $this->SetValue('CellTempMax', self::toSigned16($words[6]));
+        $this->SetValue('CellTempMin', self::toSigned16($words[7]));
     }
 
     /**
@@ -217,8 +233,11 @@ class BYDCellMonitor extends CellMonitorBase
      * Handshake auf den eigenen BMS-Index, dann das wandernde Fenster lesen, bis mindestens
      * $wunsch Worte beisammen sind. Für die Statuswerte genügen 26 Worte (eine Lesung),
      * für die Zellmessung braucht es den ganzen Puffer.
+     *
+     * protected, damit die Laufzeit-Checks den Fensterblock durch einen Mitschnitt ersetzen
+     * können, ohne den ModBus-Handshake nachzubauen.
      */
-    private function readWindow(int $wunsch): ?array
+    protected function readWindow(int $wunsch): ?array
     {
         return $this->withBusLock(function () use ($wunsch): ?array {
             if (!$this->writeSingleRegister(self::REG_INDEX, $this->ReadPropertyInteger(self::PROP_BMSINDEX))) {
