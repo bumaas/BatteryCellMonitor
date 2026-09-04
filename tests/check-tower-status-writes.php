@@ -20,24 +20,28 @@ declare(strict_types=1);
  * Aufruf: php tests/check-tower-status-writes.php (Exit-Code 1 bei Fehlern)
  */
 
+/*
+ * Symcon-Konstanten, die die geprüften Quellen verwenden. Die Werte stammen aus dem
+ * PhpStorm-Stub (symcon.php, Kernel 9.x) und sind die echten - erfundene Werte gehören
+ * hier so wenig hin wie in eine Fixture: sonst prüft eine spätere Zusicherung
+ * ("die BMU-Fehlermeldung muss KL_ERROR sein") gegen eine Zahl, die es nicht gibt.
+ */
 foreach ([
-    'VARIABLETYPE_BOOLEAN' => 0,
-    'VARIABLETYPE_INTEGER' => 1,
-    'VARIABLETYPE_FLOAT'   => 2,
-    'VARIABLETYPE_STRING'  => 3,
-    'KL_MESSAGE'           => 10,
-    'KL_SUCCESS'           => 1,
-    'KL_NOTIFY'            => 2,
-    'KL_WARNING'           => 3,
-    'KL_ERROR'             => 4,
+    'VARIABLETYPE_BOOLEAN'                     => 0,
+    'VARIABLETYPE_INTEGER'                     => 1,
+    'VARIABLETYPE_FLOAT'                       => 2,
+    'VARIABLETYPE_STRING'                      => 3,
+    'IS_ACTIVE'                                => 102,
+    'KL_MESSAGE'                               => 10201,
+    'KL_SUCCESS'                               => 10202,
+    'KL_NOTIFY'                                => 10203,
+    'KL_WARNING'                               => 10204,
+    'KL_ERROR'                                 => 10205,
+    'VARIABLE_PRESENTATION_VALUE_PRESENTATION' => '{3319437D-7CDE-699D-750A-3C6A3841FA75}',
+    'VARIABLE_PRESENTATION_DATE_TIME'          => '{497C4845-27FA-6E4F-AE37-5D951D3BDBF9}',
 ] as $name => $wert) {
     if (!defined($name)) {
         define($name, $wert);
-    }
-}
-foreach (['VARIABLE_PRESENTATION_VALUE_PRESENTATION'] as $name) {
-    if (!defined($name)) {
-        define($name, '{2FCEC3C1-CBD0-4B03-9B5E-2C4DA6DBEA6E}');
     }
 }
 
@@ -180,18 +184,37 @@ require_once dirname(__DIR__) . '/BYDCellMonitor/module.php';
  */
 final class TowerWriteHarness extends BYDCellMonitor
 {
+    /** wie BYDCellMonitor::REG_STATUSBLOCK - dort private und deshalb nicht erbbar */
+    private const int REG_STATUSBLOCK = 0x0500;
+
     public array $statusWords  = [];
     public ?array $windowWords = null;
     public int $windowCalls    = 0;
+    /** @var list<string> Lesungen auf andere Register - der Test erwartet keine */
+    public array $fremdeLesungen = [];
 
     protected function withBusLock(callable $fn): mixed
     {
         return $fn();
     }
 
+    /**
+     * Bedient wird ausschließlich der Statusblock; jede andere Adresse (Infoblock,
+     * Fenster) gilt als nicht vorgesehen und wird protokolliert. Die Zusicherung der
+     * Produktion gilt auch hier: entweder genau $quantity Worte oder null. Ohne diese
+     * beiden Schranken lieferte die Attrappe stillschweigend den Statusblock auch dort
+     * aus, wo das Modul etwas ganz anderes liest - der 20-Wort-Block als Infoblock
+     * gelesen ergäbe zwei BMS und 13 Module und würde den Ein-Turm-Fall unbemerkt auf
+     * den Mehrturm-Pfad schieben.
+     */
     protected function readHoldingRegisters(int $address, int $quantity): ?array
     {
-        return array_slice($this->statusWords, 0, $quantity) ?: null;
+        if ($address !== self::REG_STATUSBLOCK) {
+            $this->fremdeLesungen[] = sprintf('Register %d (%d Worte)', $address, $quantity);
+            return null;
+        }
+        $words = array_slice($this->statusWords, 0, $quantity);
+        return count($words) === $quantity ? $words : null;
     }
 
     protected function readWindow(int $wunsch): ?array
@@ -282,6 +305,7 @@ $modul = baueModul($statusblock, $turm1, 2);
 $soc   = $modul->statusLesen();
 
 pruefe('Rückgabe ist der Turm-SOC', 33, $soc);
+pruefe('keine Lesung auf fremde Register', [], $modul->fremdeLesungen);
 foreach (TURMWERTE as $ident) {
     pruefe(sprintf('%s wird genau einmal geschrieben', $ident), 1, count(schreibungen($modul, $ident)));
 }
@@ -311,6 +335,7 @@ $modul = baueModul($statusblock, null, 2);
 $soc   = $modul->statusLesen();
 
 pruefe('Rückgabe meldet den Fehlschlag', null, $soc);
+pruefe('keine Lesung auf fremde Register', [], $modul->fremdeLesungen);
 pruefe('Fensterblock wurde versucht', 1, $modul->windowCalls);
 foreach (TURMWERTE as $ident) {
     pruefe(sprintf('%s bleibt unangetastet', $ident), 0, count(schreibungen($modul, $ident)));
@@ -328,6 +353,7 @@ $modul = baueModul($statusblock, $turm1, 1);
 $soc   = $modul->statusLesen();
 
 pruefe('Rückgabe ist der Box-SOC', 28, $soc);
+pruefe('keine Lesung auf fremde Register', [], $modul->fremdeLesungen);
 pruefe('Fensterblock wird gar nicht gelesen', 0, $modul->windowCalls);
 foreach (array_merge(TURMWERTE, BOXWERTE) as $ident) {
     pruefe(sprintf('%s wird genau einmal geschrieben', $ident), 1, count(schreibungen($modul, $ident)));
