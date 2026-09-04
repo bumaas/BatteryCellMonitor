@@ -267,14 +267,18 @@ sehen will.
 Instanzen. Bestehende behalten ihre 250 mV und müssen von Hand nachziehen — das gehört
 in jede Releaseinfo zu geänderten Vorgaben.
 
-## Stand und offene Punkte (03.09.2026, 1.2 build 23)
+## Stand und offene Punkte (04.09.2026, 1.3 build 27)
 
 - Beide Module laufen an echter Hardware (BYD am HVM des nuc und am HVS von erpe,
-  Marstek an der Venus E 3.0 in Neustadt). Im Store steht **Beta 1.2 #23**
-  (Commit `be1ce4c`, veröffentlicht 03.09.2026, Release-ID 18163). Stable gibt es
-  noch nicht — nach der Beta-Regel wären 1–2 Wochen ohne Fehlermeldungen abzuwarten,
-  hier zusätzlich erpes Rückmeldung zur neuen Warnlogik. Rückmeldungen laufen über
-  das Forumsthema `t/144307`.
+  Marstek an der Venus E 3.0 in Neustadt). Im Store steht **Beta 1.3 #27**
+  (Commit `7aafa6a`, veröffentlicht 04.09.2026, Release-ID 18187; sie löste die
+  Beta 1.3 #24 ab, Release-ID 18168). Stable gibt es noch nicht — nach der
+  Beta-Regel wären 1–2 Wochen ohne Fehlermeldungen abzuwarten, hier zusätzlich
+  erpes Rückmeldung zur neuen Warnlogik und zum Sägezahn seiner beiden Türme.
+  Rückmeldungen laufen über das Forumsthema `t/144307`.
+- **Offen bei erpe:** Ob mit build 26 der Sägezahn in seinem Archiv verschwunden
+  ist, kann nur er bestätigen — der HVM des nuc hat nur einen Turm und läuft
+  dauerhaft über den unveränderten Pfad.
 - **Ablösung von #27108 abgeschlossen (03.09.2026):** Blockabfrage #27108, das alte
   Skript #56646, ModBus Gateway #51186 mit den vier `BYD_BMS_*`-Adressen,
   `BYD_BATTERY_DEVICE` #50731 und der zugehörige Client Socket #24354 sind gelöscht.
