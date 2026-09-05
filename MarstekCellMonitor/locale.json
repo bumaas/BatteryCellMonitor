@@ -46,7 +46,7 @@
             "Module %d cell voltage max": "Modul %d Zellspannung Max",
             "Module %d spread": "Modul %d Spannweite",
             "Module %d temperature max": "Modul %d Temperatur Max",
-            "Cell %1$d (module %2$d): %3$d mV above protection limit": "Zelle %1$d (Modul %2$d): %3$d mV über der Schutzgrenze",
+            "Cell %1$d (module %2$d): %3$d mV above protection limit": "Zelle %1$d (Modul %2$d): Schutzgrenze überschritten (%3$d mV)",
             "Cell %1$d (module %2$d): %3$d mV": "Zelle %1$d (Modul %2$d): %3$d mV",
             "Cell %1$d (module %2$d): only %3$d mV": "Zelle %1$d (Modul %2$d): nur %3$d mV",
             "Module %1$d: spread %2$d mV": "Modul %1$d: Spannweite %2$d mV",
