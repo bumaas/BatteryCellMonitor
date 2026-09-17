@@ -1,7 +1,3 @@
-# CLAUDE.md
-
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-
 # Battery Cell Monitor — Projektwissen
 
 Symcon-Modulbibliothek (bumaas), entstanden 08/2026 aus dem Zellmonitor-Skript
@@ -13,10 +9,8 @@ Gerätemodule über einer gemeinsamen Basisklasse (`libs/CellMonitorBase.php`).
 `T:\modules\BatteryCellMonitor` liegt im **produktiven modules-Verzeichnis des nuc**
 (`\\nuc\Symcon`) — jede gespeicherte Datei wirkt auf die laufende Anlage. Daraus folgt:
 
-- Nach Änderungen an `module.php`/`libs/*.php` die Bibliothek neu einlesen (kein
-  Kernel-Neustart nötig):
-  `… symcon_rpc.php MC_ReloadModule 51062 '"BatteryCellMonitor"'`
-  (Modules-Instanz des nuc = **#51062**, Parameter ist der Verzeichnisname).
+- Nach Änderungen an `module.php`/`libs/*.php` per `MC_ReloadModule` mit Ordnername
+  `BatteryCellMonitor` neu einlesen (siehe globale `CLAUDE.md`).
 - Live-Instanzen zum Verifizieren: **BYD Zellmonitor #11890** (Client Socket #34193),
   **Marstek Zellmonitor (Test Neustadt) #50851** (Client Socket #21399).
 - Messung/Abfrage ohne Konsole auslösen: `IPS_RequestAction <id> "MeasureNow" 0` bzw.
@@ -25,16 +19,22 @@ Gerätemodule über einer gemeinsamen Basisklasse (`libs/CellMonitorBase.php`).
 
 ## Prüfungen
 
-Es gibt **keine Unit-Tests**; die CI (`.github/workflows/check.yml`, PHP 8.4) besteht aus
-drei Schritten, die lokal genauso laufen (`php` = `C:\php\php`):
+Die CI (`.github/workflows/check.yml`, PHP 8.4) besteht aus vier Schritten, die lokal
+genauso laufen (`php` = `C:\php\php`):
 
 ```bash
 php -l libs/CellMonitorBase.php && php -l BYDCellMonitor/module.php \
-  && php -l MarstekCellMonitor/module.php && php -l tests/check_locale.php
-php tests/check_locale.php          # Übersetzungen, Exit-Code 1 bei Lücken
+  && php -l MarstekCellMonitor/module.php && php -l tests/check_locale.php \
+  && php -l tests/check-tower-status-writes.php
 find . -name '*.json' -not -path './.git/*' -print0 |
   xargs -0 -n1 php -r 'json_decode(file_get_contents($argv[1]), false, 512, JSON_THROW_ON_ERROR);' --
+php tests/check_locale.php          # Übersetzungen, Exit-Code 1 bei Lücken
+php tests/check-tower-status-writes.php   # Laufzeit-Check, Mitschnitte in tests/fixtures/
 ```
+
+`tests/check-tower-status-writes.php` ist der Regressionstest zur Regel „je Wert genau eine
+Quelle" (siehe BYD) und spielt echte Mitschnitte aus `tests/fixtures/` ab (Statusblock des
+HVM, Fensterblöcke beider HVS-Türme).
 
 `tests/check_locale.php` prüft **beide** Modulverzeichnisse in einem Lauf (keine Einzelwahl)
 und hängt `libs/*.php` an die Modulquelle an, weil die `Translate()`-Texte der Basisklasse
@@ -181,9 +181,8 @@ Protokoll nach sarnau/BYD-Battery-Box-Infos, am 25.08.2026 verifiziert:
 - **Seriennummer beginnt bei Wort 33, nicht 34** (Korrektur 28.08.2026): erpes Nummer
   lautet `P030T020Z2308311111`, gelesen wurde `30T020Z…` — das führende Wort 33
   (0x5030 = „P0") fehlte. Rechts füllt die BMU mit „x" auf; das wird abgeschnitten.
-- **`compatibility.date` gehört auf 0** und darf beim Build-Hochzählen nicht mit dem
-  Bibliotheksdatum überschrieben werden — sonst verlangt Symcon einen Kernel, der
-  mindestens so neu ist, und lehnt Installation wie Update ab.
+- **`compatibility.date` gehört auf 0** — siehe globale `CLAUDE.md`, Abschnitt
+  „Symcon: Build-/Versionspflege in Modul-Repos"; `beta_release.php` prüft es.
 - **Max/Min-Zellspannung im Statusblock hat nur 10-mV-Auflösung** (Wort 1/2 × 0,01 V).
   Bei engem Turm stehen dort Max = Min und Delta 0 — kein Fehler; die feinen Werte
   (1 mV) kommen aus der Zellmessung.
@@ -194,7 +193,7 @@ Protokoll nach sarnau/BYD-Battery-Box-Infos, am 25.08.2026 verifiziert:
 ## Marstek (am Gerät erprobt, 28.08.2026)
 
 **Erster echter Lauf bestanden** (build 14, Instanz gegen die Venus E 3.0 in Neustadt):
-`PollStatus` 2,3 s (viele Einzelregister — Bündeln wäre eine Optimierung), `Measure`
+`PollStatus` 2,3 s (viele Einzelregister, siehe „Stand und offene Punkte"), `Measure`
 0,16 s. Alle Werte decken sich mit der unabhängigen Erfassung derselben Batterie —
 SOC 40 vs. 40,4 %, 53,05 vs. 53,04 V, Zellen 3,318/3,314 vs. 3,316/3,313 V, Delta
 4 vs. 5 mV, Temperaturen 30,6/28,4 vs. 30,7/28,5 °C, Innentemperatur 39,9 vs. 39,8 °C,
@@ -267,7 +266,9 @@ sehen will.
 Instanzen. Bestehende behalten ihre 250 mV und müssen von Hand nachziehen — das gehört
 in jede Releaseinfo zu geänderten Vorgaben.
 
-## Stand und offene Punkte (04.09.2026, 1.3 build 27)
+## Stand und offene Punkte (04.09.2026)
+
+Aktueller Store-Stand je Kanal: `C:\Users\Burkhard\.claude\PROJEKTSTATUS.md`.
 
 - Beide Module laufen an echter Hardware (BYD am HVM des nuc und am HVS von erpe,
   Marstek an der Venus E 3.0 in Neustadt). Im Store steht **Beta 1.3 #27**
@@ -291,30 +292,32 @@ in jede Releaseinfo zu geänderten Vorgaben.
   das Modul intern (`detectConfiguration()`, Attribute), zeigt sie aber nicht an.
 - Optimierung Marstek: `readStatusValues()` liest sechs Einzelblöcke (2,3 s je Poll);
   Bündeln zusammenhängender Register wäre der nächste Schritt.
-- Referenz-Checkliste für eigene Module: `T:\modules\BlindControl` (CI und
-  `tests/check_locale.php` sind von dort übernommen).
+- CI und `tests/check_locale.php` stammen aus BlindControl; siehe globale `CLAUDE.md`,
+  Abschnitt „Symcon: Referenz-Checkliste für Modul-Repos".
 
-## Kompatibilität (korrigiert 28.08.2026: 9.0)
+## Kompatibilität
 
-`compatibility.version = 9.0` — bestimmt durch den **IO-Datenfluss**:
-- **Seit Symcon 9.0 ist der Buffer im Socket-Datenfluss hex-kodiert**
-  (`bin2hex`/`hex2bin`). Die utf8-Kodierung aus der (veralteten!) SDK-Doku wird
-  vom Kernel als Hex-String fehlinterpretiert → Datenmüll auf der Leitung
+`compatibility.version = 9.0`. Ob 9.0 aus einem anderen Grund nötig ist, ist offen
+(nicht belegt) — der IO-Datenfluss, auf den diese Angabe früher zurückgeführt wurde,
+begründet sie nicht:
+- **Der Buffer im Socket-Datenfluss ist hex-kodiert, weil die Basisklasse
+  `IPSModuleStrict` ist** (`bin2hex`/`hex2bin`), nicht wegen der Kernel-Version; das
+  „9.0" der SDK-Doku meint PHP 9.0. Siehe globale `CLAUDE.md`, Abschnitt „Symcon:
+  IO-Datenfluss — hex oder utf8 hängt an der BASISKLASSE". Die utf8-Kodierung wird vom
+  Kernel als Hex-String fehlinterpretiert → Datenmüll auf der Leitung
   (Alpha-Befund 27./28.08.: gesendet `01 03 05 00 00 14 45 09`, auf der Leitung
   `00 00 00 0E`; per Testbox-Listener reproduziert und mit build 9 behoben).
-  Referenz: WLED-Commit `de77200` (13.03.2026) — „Hex-Handling",
-  „Library auf Symcon 9.0 angehoben". Burkhard hatte die 9.0-Korrektur richtig
-  in Erinnerung.
+  Vorbild für die Umstellung: WLED-Commit `de77200` (13.03.2026, „Hex-Handling").
 - **9.1 ist NICHT nötig** — der RequestRead-Blockabfrage-Fix (t/143397) betrifft
   nur den Symcon-ModBus-Stack; das Modul framet selbst auf dem Client Socket.
 - **`ConnectParent()` gibt es nicht mehr** (build 7): Der Client Socket wird über
   `GetCompatibleParents()` (`type: connect`) angeboten, nicht im `Create()` verbunden.
-- Nachrangig (wäre ohne den Datenfluss die Grenze gewesen): Darstellungen
+- Nachrangig: Darstellungen
   brauchen ≥ 8.0, typisierte Klassenkonstanten PHP ≥ 8.3 (ab 8.1 belegt).
 - `VISU_PostNotification` ist per `function_exists` + `WFC_PushNotification`-
   Fallback abgesichert und daher nicht versionskritisch.
 
 ## Konventionen
 
-Version/Build in `library.json` pflegen (Commit-Subject
-`<version> build <NN>: <Beschreibung>`); Details in der globalen `CLAUDE.md`.
+Version/Build: siehe globale `CLAUDE.md`, Abschnitt „Symcon: Build-/Versionspflege in
+Modul-Repos".
