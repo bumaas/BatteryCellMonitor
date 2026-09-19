@@ -363,7 +363,11 @@ abstract class CellMonitorBase extends IPSModuleStrict
             $this->SetValue('LastAlert', date('d.m.Y H:i') . ' ' . $text);
             $this->LogMessage(($criticals !== [] ? 'KRITISCH: ' : 'Warnung: ') . $text, $criticals !== [] ? KL_ERROR : KL_WARNING);
             $this->sendPush(
-                $criticals !== [] ? $this->Translate('Cell monitor: CRITICAL') : $this->Translate('Cell monitor: warning'),
+                sprintf(
+                    '%s – %s',
+                    IPS_GetName($this->InstanceID),
+                    $criticals !== [] ? $this->Translate('Cell monitor: CRITICAL') : $this->Translate('Cell monitor: warning')
+                ),
                 $text,
                 $criticals !== []
             );
