@@ -442,6 +442,21 @@ abstract class CellMonitorBase extends IPSModuleStrict
 
     // -- ModBus-TCP über den Client Socket -----------------------------------
 
+    /**
+     * GetBuffer() kann laut Symcon-Stub string|false liefern - false z. B. im
+     * kurzen Fenster, in dem die InstanceInterface einer Instanz nach einem
+     * Modul-Reload noch nicht bereit ist (Status 105, siehe globale CLAUDE.md,
+     * Abschnitt "Symcon: JSON-RPC-Zugriff"). Bis build 29 landete das false
+     * ungeprüft in base64_decode() (Fatal Error, gemeldet von erpe, t/144307,
+     * PN 19.09.2026). false wird hier wie ein leerer Puffer behandelt - die
+     * bestehende Timeout-Logik in [mbap|rtu]Transaction() greift dann regulär.
+     */
+    private function getBufferString(string $name): string
+    {
+        $value = $this->GetBuffer($name);
+        return $value === false ? '' : $value;
+    }
+
     public function ReceiveData(string $JSONString): string
     {
         $data = json_decode($JSONString, true, 512, JSON_THROW_ON_ERROR);
@@ -450,7 +465,7 @@ abstract class CellMonitorBase extends IPSModuleStrict
         if ($chunk === false) {
             $chunk = (string) $data['Buffer'];
         }
-        $this->SetBuffer('RxBuffer', base64_encode(base64_decode($this->GetBuffer('RxBuffer')) . $chunk));
+        $this->SetBuffer('RxBuffer', base64_encode(base64_decode($this->getBufferString('RxBuffer')) . $chunk));
         return '';
     }
 
@@ -523,7 +538,7 @@ abstract class CellMonitorBase extends IPSModuleStrict
         $deadline = microtime(true) + $this->ReadPropertyInteger(self::PROP_TIMEOUT) / 1000;
         while (microtime(true) < $deadline) {
             IPS_Sleep(20);
-            $rx = base64_decode($this->GetBuffer('RxBuffer'));
+            $rx = base64_decode($this->getBufferString('RxBuffer'));
             while (strlen($rx) >= 7) {
                 $header = unpack('ntid/nproto/nlen', substr($rx, 0, 6));
                 if (strlen($rx) < 6 + $header['len']) {
@@ -562,7 +577,7 @@ abstract class CellMonitorBase extends IPSModuleStrict
         $deadline = microtime(true) + $this->ReadPropertyInteger(self::PROP_TIMEOUT) / 1000;
         while (microtime(true) < $deadline) {
             IPS_Sleep(20);
-            $rx     = base64_decode($this->GetBuffer('RxBuffer'));
+            $rx     = base64_decode($this->getBufferString('RxBuffer'));
             $length = self::rtuFrameLength($rx);
             if ($length === null || strlen($rx) < $length) {
                 continue; // Frame noch unvollständig
@@ -613,7 +628,7 @@ abstract class CellMonitorBase extends IPSModuleStrict
 
     private function nextTransactionID(): int
     {
-        $counter = ((int) $this->GetBuffer('TidCounter') + 1) & 0xFF;
+        $counter = ((int) $this->getBufferString('TidCounter') + 1) & 0xFF;
         $this->SetBuffer('TidCounter', (string) $counter);
         return (($this->InstanceID & 0xFF) << 8) | $counter;
     }

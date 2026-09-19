@@ -25,16 +25,22 @@ genauso laufen (`php` = `C:\php\php`):
 ```bash
 php -l libs/CellMonitorBase.php && php -l BYDCellMonitor/module.php \
   && php -l MarstekCellMonitor/module.php && php -l tests/check_locale.php \
-  && php -l tests/check-tower-status-writes.php
+  && php -l tests/check-tower-status-writes.php && php -l tests/check-getbuffer-false.php
 find . -name '*.json' -not -path './.git/*' -print0 |
   xargs -0 -n1 php -r 'json_decode(file_get_contents($argv[1]), false, 512, JSON_THROW_ON_ERROR);' --
 php tests/check_locale.php          # Übersetzungen, Exit-Code 1 bei Lücken
 php tests/check-tower-status-writes.php   # Laufzeit-Check, Mitschnitte in tests/fixtures/
+php tests/check-getbuffer-false.php       # Laufzeit-Check, GetBuffer() === false am Empfangspuffer
 ```
 
 `tests/check-tower-status-writes.php` ist der Regressionstest zur Regel „je Wert genau eine
 Quelle" (siehe BYD) und spielt echte Mitschnitte aus `tests/fixtures/` ab (Statusblock des
 HVM, Fensterblöcke beider HVS-Türme).
+
+`tests/check-getbuffer-false.php` prüft, dass ein von `GetBuffer()` gelieferter `false`-Wert
+(legitim laut Symcon-Stub, z. B. bei kurzzeitig nicht verfügbarer InstanceInterface nach einem
+Modul-Reload) nicht mehr zum Fatal Error führt, sondern wie ein leerer Puffer behandelt wird.
+Kein Fixture nötig — simuliert wird Kernel-Verhalten, kein ModBus-Mitschnitt.
 
 `tests/check_locale.php` prüft **beide** Modulverzeichnisse in einem Lauf (keine Einzelwahl)
 und hängt `libs/*.php` an die Modulquelle an, weil die `Translate()`-Texte der Basisklasse
