@@ -85,13 +85,13 @@ zwei Abnehmer am selben Socket stören sich gegenseitig.
 | Zeitlimit | 2000 ms | Antwort-Timeout je Anfrage |
 | Status-Abfrageintervall | 60 s | Kurzabfrage (SOC, Strom, …); 0 = aus |
 | Zellmess-Intervall | 60 min | zyklische Komplettmessung; 0 = aus |
-| Messen ab / bis SOC | 99 % / 5 % | zusätzliche Messung am Lade-/Entladeschluss |
-| Mindestabstand SOC-Messungen | 7200 s | Sperrzeit für die SOC-getriggerten Messungen |
+| Messen ab SOC von / Messen bis SOC von | 99 % / 5 % | zusätzliche Messung am Lade-/Entladeschluss |
+| Mindestabstand SOC-ausgelöster Messungen | 7200 s | Sperrzeit für die SOC-getriggerten Messungen |
 | Schwellwerte | s. u. | Warn-/Kritisch-Grenzen in mV |
 | Visualisierung für Push | 0 | Kachel-Visualisierung; 0 = keine Push-Meldungen |
-| Abstand Warn-/Krit-Pushes | 24 h / 4 h | höchstens eine Meldung je Sperrzeit |
-| Archiv-Protokollierung | an | neue numerische Variablen automatisch loggen |
-| Rohdaten aufbewahren | aus | letzte Messung als JSON in einer String-Variable |
+| Abstand zwischen Warn-Pushes / Abstand zwischen kritischen Pushes | 24 h / 4 h | höchstens eine Meldung je Sperrzeit |
+| Neue Variablen im Archiv protokollieren | an | neue numerische Variablen automatisch loggen |
+| Rohdaten der letzten Messung aufbewahren | aus | letzte Messung als JSON in einer String-Variable |
 
 ## Variablen
 
@@ -153,12 +153,12 @@ jeder Instanz frei einstellbar.
 
 | Schwelle | Vorgabe | Gedanke dahinter |
 |---|---|---|
-| Warnung hoch | 3570 mV | oberes Ende des normalen Ladeschlusses; ab hier wird die Kennlinie steil |
-| Kritisch hoch | 3650 mV | Ladeschlussspannung der Zelle — hier greift der Zellschutz |
-| Warnung niedrig | 2850 mV | unteres Knie der Kennlinie, deutlich vor der Abschaltung |
-| Kritisch niedrig | 2600 mV | Tiefentladebereich |
-| Spannweite je Modul | 300 mV | großzügig, weil am Ladeschluss gemessen wird |
-| Temperaturspreizung | 8 K | 2–5 K sind im Betrieb üblich |
+| Zellspannung Warnung (hoch) | 3570 mV | oberes Ende des normalen Ladeschlusses; ab hier wird die Kennlinie steil |
+| Zellspannung kritisch (hoch) | 3650 mV | Ladeschlussspannung der Zelle — hier greift der Zellschutz |
+| Zellspannung Warnung (niedrig) | 2850 mV | unteres Knie der Kennlinie, deutlich vor der Abschaltung |
+| Zellspannung kritisch (niedrig) | 2600 mV | Tiefentladebereich |
+| Modul-Spannweite Warnung | 300 mV | großzügig, weil am Ladeschluss gemessen wird |
+| Warnung ab Temperaturspreizung | 8 K | 2–5 K sind im Betrieb üblich |
 
 Das BMS schützt die Zellen selbst; die Hinweise dienen der **Früherkennung**,
 nicht dem Schutz. Deshalb kann das Modul warnen, während die App oder das Portal

@@ -1,31 +1,4 @@
 {
     "hinweis": "Doku-Lücken bei Einführung von tests/check-readme.php. Nur streichen, nie ergänzen - neue Felder und Funktionen gehören in die Doku.",
-    "offen": [
-        "feld:BYDCellMonitor:AutoCooldown",
-        "feld:BYDCellMonitor:AutoEmptySOC",
-        "feld:BYDCellMonitor:AutoFullSOC",
-        "feld:BYDCellMonitor:AutoLogging",
-        "feld:BYDCellMonitor:CellMaxCrit",
-        "feld:BYDCellMonitor:CellMaxWarn",
-        "feld:BYDCellMonitor:CellMinCrit",
-        "feld:BYDCellMonitor:CellMinWarn",
-        "feld:BYDCellMonitor:CritCooldown",
-        "feld:BYDCellMonitor:KeepRawData",
-        "feld:BYDCellMonitor:SpreadWarn",
-        "feld:BYDCellMonitor:TempSpreadWarn",
-        "feld:BYDCellMonitor:WarnCooldown",
-        "feld:MarstekCellMonitor:AutoCooldown",
-        "feld:MarstekCellMonitor:AutoEmptySOC",
-        "feld:MarstekCellMonitor:AutoFullSOC",
-        "feld:MarstekCellMonitor:AutoLogging",
-        "feld:MarstekCellMonitor:CellMaxCrit",
-        "feld:MarstekCellMonitor:CellMaxWarn",
-        "feld:MarstekCellMonitor:CellMinCrit",
-        "feld:MarstekCellMonitor:CellMinWarn",
-        "feld:MarstekCellMonitor:CritCooldown",
-        "feld:MarstekCellMonitor:KeepRawData",
-        "feld:MarstekCellMonitor:SpreadWarn",
-        "feld:MarstekCellMonitor:TempSpreadWarn",
-        "feld:MarstekCellMonitor:WarnCooldown"
-    ]
+    "offen": []
 }
