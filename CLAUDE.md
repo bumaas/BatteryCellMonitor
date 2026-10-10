@@ -109,7 +109,7 @@ Protokoll nach sarnau/BYD-Battery-Box-Infos, am 25.08.2026 verifiziert:
   sein funktionierender Gateway-Modus „Modbus RTU over TCP", der identische
   Modus (GatewayMode 2) am produktiven nuc-Gateway und sarnaus
   `ModbusRtuFramer` bestätigen das übereinstimmend (HVM wie HVS).
-- erpes HVS antwortet auf der Hotspot-IP 192.168.16.254 über eine statische
+- erpes HVS antwortet auf der Hotspot-IP seines Speichers über eine statische
   Route (Fritzbox → LAN-IP der BCU); ob die LAN-IP selbst ModBus anbietet,
   ist offen (sein Test dorthin scheiterte, war aber auch MBAP).
 - **HVS am 28.08.2026 an erpes Anlage verifiziert** (2 Türme à 4 Module,
@@ -208,8 +208,8 @@ Zyklen 87 = 87. **Abweichung nur beim Batteriestrom** (6,9 A gegen 0,6 A): Aus
 skaliert Register 30101 um den Faktor 10 zu klein.
 
 
-**Port 5200, nicht 502** (Fund 28.08.2026 an der Venus E 3.0 in Neustadt,
-192.168.10.187, gelesen über Tailscale): Auf 502 antwortet zwar ebenfalls ein
+**Port 5200, nicht 502** (Fund 28.08.2026 an einer Venus E 3.0 einer zweiten Anlage,
+gelesen über ein VPN): Auf 502 antwortet zwar ebenfalls ein
 ModBus-Dienst, quittiert aber jedes Register der v3-Karte mit Ausnahme 2. Über
 **5200** kamen alle unten genannten Register plausibel — SOC 21,7 %, 16 Zellen
 3262–3266 mV, 52,21 V / −6,2 A, −339 W, 32,4 °C intern, Zelle max/min 27,4/25,8 °C,
@@ -274,7 +274,7 @@ in jede Releaseinfo zu geänderten Vorgaben.
 
 ## Stand und offene Punkte (04.09.2026)
 
-Aktueller Store-Stand je Kanal: `C:\Users\Burkhard\.claude\PROJEKTSTATUS.md`.
+Aktueller Store-Stand je Kanal: `~\.claude\PROJEKTSTATUS.md`.
 
 - Beide Module laufen an echter Hardware (BYD am HVM des nuc und am HVS von erpe,
   Marstek an der Venus E 3.0 in Neustadt). Im Store steht **Beta 1.3 #27**
@@ -289,7 +289,7 @@ Aktueller Store-Stand je Kanal: `C:\Users\Burkhard\.claude\PROJEKTSTATUS.md`.
 - **Ablösung von #27108 abgeschlossen (03.09.2026):** Blockabfrage #27108, das alte
   Skript #56646, ModBus Gateway #51186 mit den vier `BYD_BMS_*`-Adressen,
   `BYD_BATTERY_DEVICE` #50731 und der zugehörige Client Socket #24354 sind gelöscht.
-  Auf die BCU (192.168.178.24:8080) hält nur noch der Client Socket #34193 des
+  Auf die BCU (Port 8080) hält nur noch der Client Socket #34193 des
   Zellmonitors eine Verbindung. Vor dem Löschen lagen alle fünf geloggten Altvariablen
   deckungsgleich im Ziel (Zell-Delta dabei von V auf mV umgestellt, die beiden Energien
   im Ziel als Aggregationstyp „Zähler"), und build 23 ergänzte **BMU-Temperatur** und
