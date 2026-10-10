@@ -188,7 +188,7 @@ Protokoll nach sarnau/BYD-Battery-Box-Infos, am 25.08.2026 verifiziert:
   lautet `P030T020Z2308311111`, gelesen wurde `30T020Z…` — das führende Wort 33
   (0x5030 = „P0") fehlte. Rechts füllt die BMU mit „x" auf; das wird abgeschnitten.
 - **`compatibility.date` gehört auf 0** — siehe globale `CLAUDE.md`, Abschnitt
-  „Symcon: Build-/Versionspflege in Modul-Repos"; `beta_release.php` prüft es.
+  „Symcon: Build-/Versionspflege in Modul-Repos"; `symcon_store_release.php` prüft es.
 - **Max/Min-Zellspannung im Statusblock hat nur 10-mV-Auflösung** (Wort 1/2 × 0,01 V).
   Bei engem Turm stehen dort Max = Min und Delta 0 — kein Fehler; die feinen Werte
   (1 mV) kommen aus der Zellmessung.
