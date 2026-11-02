@@ -42,7 +42,7 @@ abstract class CellMonitorBase extends IPSModuleStrict
     protected const string PROP_WARNCOOLDOWN    = 'WarnCooldown';     // s
     protected const string PROP_CRITCOOLDOWN    = 'CritCooldown';     // s
     protected const string PROP_VISUID          = 'VisuID';           // Kachel-Visualisierung für Push, 0 = aus
-    protected const string PROP_AUTOLOG         = 'AutoLogging';      // neue Variablen im Archiv protokollieren
+    protected const string PROP_AUTOLOG         = 'AutoLogging';      // neue Variablen im Archiv protokollieren (nur auf Wunsch)
     protected const string PROP_KEEPRAW         = 'KeepRawData';      // Rohdaten der letzten Messung als JSON ablegen
 
     // Attribute
@@ -85,7 +85,9 @@ abstract class CellMonitorBase extends IPSModuleStrict
         $this->RegisterPropertyInteger(self::PROP_WARNCOOLDOWN, 86400);
         $this->RegisterPropertyInteger(self::PROP_CRITCOOLDOWN, 14400);
         $this->RegisterPropertyInteger(self::PROP_VISUID, 0);
-        $this->RegisterPropertyBoolean(self::PROP_AUTOLOG, true);
+        // Archiv-Logging nur nach Zustimmung des Benutzers (Store-Review Punkt 11): ab Werk aus,
+        // für bestehende Variablen gibt es den Knopf "EnableArchiveLogging".
+        $this->RegisterPropertyBoolean(self::PROP_AUTOLOG, false);
         $this->RegisterPropertyBoolean(self::PROP_KEEPRAW, false);
 
         $this->RegisterAttributeInteger(self::ATTR_LASTAUTO, 0);
@@ -155,6 +157,10 @@ abstract class CellMonitorBase extends IPSModuleStrict
                     'DataID' => self::GUID_DATA_TO_PARENT,
                     'Buffer' => (string) $value, // kommt bereits als Hex an
                 ], JSON_THROW_ON_ERROR));
+                break;
+            case 'EnableArchiveLogging':
+                // Knopf im Aktionsbereich; die Ausgabe zeigt die Konsole als Meldung an.
+                echo $this->enableArchiveLogging();
                 break;
             case 'TestPush':
                 $this->sendPush(
@@ -660,12 +666,6 @@ abstract class CellMonitorBase extends IPSModuleStrict
 
     // -- Variablenverwaltung -------------------------------------------------
 
-    /** Variable anlegen, falls neu; neue numerische Variablen optional im Archiv protokollieren. */
-    /**
-     * @param bool $counter Monoton steigender Zähler (z. B. Energie ab Werk) - dann bekommt
-     *                      die Variable im Archiv die Aggregation "Zähler", sodass Tages-
-     *                      und Monatswerte als Differenz statt als Mittelwert entstehen.
-     */
     /**
      * Ist der Client Socket wirklich verbunden? `HasActiveParent()` allein sagt nur, dass ein
      * aktiver Parent existiert - nach einem Modul-Update oder wenn die Gegenstelle die
@@ -692,7 +692,21 @@ abstract class CellMonitorBase extends IPSModuleStrict
         return true;
     }
 
-    protected function ensureVariable(string $ident, string $name, int $type, array $presentation, int $position, bool $counter = false): void
+    /**
+     * Idents monoton steigender Zähler (z. B. Energie ab Werk). Sie bekommen im Archiv die
+     * Aggregation "Zähler", sodass Tages- und Monatswerte als Differenz statt als Mittelwert
+     * entstehen.
+     */
+    protected function counterIdents(): array
+    {
+        return [];
+    }
+
+    /**
+     * Variable anlegen, falls neu. Neue numerische Variablen kommen nur ins Archiv, wenn der
+     * Benutzer das Häkchen AutoLogging gesetzt hat.
+     */
+    protected function ensureVariable(string $ident, string $name, int $type, array $presentation, int $position): void
     {
         $existed = @$this->GetIDForIdent($ident) !== false;
         switch ($type) {
@@ -711,13 +725,65 @@ abstract class CellMonitorBase extends IPSModuleStrict
         if (!$existed && $type !== VARIABLETYPE_STRING && $this->ReadPropertyBoolean(self::PROP_AUTOLOG)) {
             $archiveIDs = IPS_GetInstanceListByModuleID(self::GUID_ARCHIVE);
             if ($archiveIDs !== []) {
-                $varID = $this->GetIDForIdent($ident);
-                AC_SetLoggingStatus($archiveIDs[0], $varID, true);
-                if ($counter) {
-                    AC_SetAggregationType($archiveIDs[0], $varID, 1);
-                }
-                IPS_ApplyChanges($archiveIDs[0]);
+                $this->logVariable($archiveIDs[0], $this->GetIDForIdent($ident), in_array($ident, $this->counterIdents(), true));
             }
         }
+    }
+
+    /**
+     * Knopf "Archiv-Logging für alle Variablen einschalten": nimmt alle eigenen numerischen
+     * Variablen ins Archiv und setzt bei Zählern die Aggregation. Eine fehlende Archivinstanz
+     * legt das Modul nicht an (Kerninstanz), es meldet sie nur.
+     */
+    private function enableArchiveLogging(): string
+    {
+        $archiveIDs = IPS_GetInstanceListByModuleID(self::GUID_ARCHIVE);
+        if ($archiveIDs === []) {
+            return $this->Translate('No archive instance found - nothing changed.');
+        }
+        $counters = $this->counterIdents();
+        $total    = 0;
+        $changed  = 0;
+        foreach (IPS_GetChildrenIDs($this->InstanceID) as $childID) {
+            if (!IPS_VariableExists($childID) || IPS_GetVariable($childID)['VariableType'] === VARIABLETYPE_STRING) {
+                continue;
+            }
+            $total++;
+            $counter = in_array(IPS_GetObject($childID)['ObjectIdent'], $counters, true);
+            if ($this->logVariable($archiveIDs[0], $childID, $counter)) {
+                $changed++;
+            }
+        }
+        return sprintf(
+            $this->Translate('Archive logging: %1$d of %2$d variables changed, the others were already logged.'),
+            $changed,
+            $total
+        );
+    }
+
+    /**
+     * Logging einschalten und bei Zählern die Aggregation setzen. Laut Doku wirkt
+     * AC_SetLoggingStatus sofort, ein IPS_ApplyChanges auf das Archiv ist nicht nötig.
+     * Wird eine schon geloggte Variable auf "Zähler" umgestellt, verlangt die Doku zu
+     * AC_SetAggregationType eine Reaggregation.
+     *
+     * @return bool true, wenn sich etwas geändert hat
+     */
+    private function logVariable(int $archiveID, int $varID, bool $counter): bool
+    {
+        $changed   = false;
+        $wasLogged = AC_GetLoggingStatus($archiveID, $varID);
+        if ($counter && AC_GetAggregationType($archiveID, $varID) !== 1) {
+            AC_SetAggregationType($archiveID, $varID, 1); // 1 = Zähler (Counter)
+            if ($wasLogged) {
+                AC_ReAggregateVariable($archiveID, $varID);
+            }
+            $changed = true;
+        }
+        if (!$wasLogged) {
+            AC_SetLoggingStatus($archiveID, $varID, true);
+            $changed = true;
+        }
+        return $changed;
     }
 }

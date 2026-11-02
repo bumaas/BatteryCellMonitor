@@ -70,6 +70,12 @@ class BYDCellMonitor extends CellMonitorBase
         $this->RegisterAttributeInteger(self::ATTR_DETECTEDBMS, 0);
     }
 
+    /** Beide Energiezähler steigen seit Werk monoton. */
+    protected function counterIdents(): array
+    {
+        return ['EnergyCharged', 'EnergyDischarged'];
+    }
+
     protected function registerVendorVariables(): void
     {
         // Stammdaten der BCU (Position 1-9); sie stehen im Infoblock und ändern sich nur
@@ -101,13 +107,13 @@ class BYDCellMonitor extends CellMonitorBase
         $this->ensureVariable('ErrorBitmask', $this->Translate('Error bitmask'), VARIABLETYPE_INTEGER, [
             'PRESENTATION' => VARIABLE_PRESENTATION_VALUE_PRESENTATION, 'DIGITS' => 0,
         ], 25);
-        // Beides sind seit Werk monoton steigende Zähler - im Archiv entsprechend aggregieren.
+        // Beides sind seit Werk monoton steigende Zähler (counterIdents()).
         $this->ensureVariable('EnergyCharged', $this->Translate('Charged energy (BMU)'), VARIABLETYPE_FLOAT, [
             'PRESENTATION' => VARIABLE_PRESENTATION_VALUE_PRESENTATION, 'SUFFIX' => ' kWh', 'DIGITS' => 1,
-        ], 26, true);
+        ], 26);
         $this->ensureVariable('EnergyDischarged', $this->Translate('Discharged energy (BMU)'), VARIABLETYPE_FLOAT, [
             'PRESENTATION' => VARIABLE_PRESENTATION_VALUE_PRESENTATION, 'SUFFIX' => ' kWh', 'DIGITS' => 1,
-        ], 27, true);
+        ], 27);
     }
 
     /** Statusblock ab 0x0500 lesen (dauerhaft verfügbar, kein Handshake nötig). */

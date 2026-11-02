@@ -26,7 +26,8 @@ Entladeschluss einbrechen — die frühesten Anzeichen für Alterung oder Defekt
   plus zyklische Grundlinien-Messung
 - **Schwellwert-Hinweise mit Push-Meldung** (Kachel-Visualisierung), je Stufe
   mit eigener Sperrzeit
-- Neue Variablen werden auf Wunsch automatisch im Archiv protokolliert
+- Archiv-Protokollierung auf Wunsch: per Knopf für alle Variablen oder per Häkchen
+  automatisch für jede neu entstehende
 - Rohdaten der letzten Messung optional als JSON (für eigene Auswertungen)
 
 Die Module sprechen ModBus **direkt über einen Client Socket** — es werden
@@ -69,6 +70,12 @@ https://github.com/bumaas/BatteryCellMonitor.git
 4. Optional: Visualisierung für Push-Meldungen wählen, Schwellwerte anpassen.
 5. **„Zellen jetzt messen"** klicken — die Modul-Variablen entstehen bei der
    ersten Messung.
+6. Wer die Werte im Archiv haben will, klickt danach **„Archiv-Logging für alle
+   Variablen einschalten"**. Der Knopf nimmt alle Zahlenwerte der Instanz ins
+   Archiv, die beiden Energiezähler des BYD mit der Aggregation „Zähler", damit
+   Tages- und Monatswerte als Differenz entstehen. Variablen, die später neu
+   dazukommen (etwa bei mehr Modulen), erfasst das Häkchen „Neue Variablen im
+   Archiv protokollieren". Ohne einen der beiden Wege loggt das Modul nichts.
 
 Wer die BCU bisher über ModBus-Gateway-/Geräte-Instanzen abfragt: diese vorher
 **löschen oder inaktiv setzen**. Das Modul liefert die Statuswerte selbst, und
@@ -90,7 +97,7 @@ zwei Abnehmer am selben Socket stören sich gegenseitig.
 | Schwellwerte | s. u. | Warn-/Kritisch-Grenzen in mV |
 | Visualisierung für Push | 0 | Kachel-Visualisierung; 0 = keine Push-Meldungen |
 | Abstand zwischen Warn-Pushes / Abstand zwischen kritischen Pushes | 24 h / 4 h | höchstens eine Meldung je Sperrzeit |
-| Neue Variablen im Archiv protokollieren | an | neue numerische Variablen automatisch loggen |
+| Neue Variablen im Archiv protokollieren | aus | neu entstehende numerische Variablen automatisch loggen; bestehende über den Knopf „Archiv-Logging für alle Variablen einschalten" |
 | Rohdaten der letzten Messung aufbewahren | aus | letzte Messung als JSON in einer String-Variable |
 
 ## Variablen

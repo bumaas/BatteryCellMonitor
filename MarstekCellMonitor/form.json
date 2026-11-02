@@ -161,6 +161,11 @@
       "type": "Button",
       "caption": "Send test notification",
       "onClick": "IPS_RequestAction($id, 'TestPush', 0);"
+    },
+    {
+      "type": "Button",
+      "caption": "Enable archive logging for all variables",
+      "onClick": "IPS_RequestAction($id, 'EnableArchiveLogging', 0);"
     }
   ],
   "status": []

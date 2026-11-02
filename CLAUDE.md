@@ -25,12 +25,14 @@ genauso laufen (`php` = `C:\php\php`):
 ```bash
 php -l libs/CellMonitorBase.php && php -l BYDCellMonitor/module.php \
   && php -l MarstekCellMonitor/module.php && php -l tests/check_locale.php \
-  && php -l tests/check-tower-status-writes.php && php -l tests/check-getbuffer-false.php
+  && php -l tests/check-tower-status-writes.php && php -l tests/check-getbuffer-false.php \
+  && php -l tests/check-archive-logging.php
 find . -name '*.json' -not -path './.git/*' -print0 |
   xargs -0 -n1 php -r 'json_decode(file_get_contents($argv[1]), false, 512, JSON_THROW_ON_ERROR);' --
 php tests/check_locale.php          # Übersetzungen, Exit-Code 1 bei Lücken
 php tests/check-tower-status-writes.php   # Laufzeit-Check, Mitschnitte in tests/fixtures/
 php tests/check-getbuffer-false.php       # Laufzeit-Check, GetBuffer() === false am Empfangspuffer
+php tests/check-archive-logging.php       # Laufzeit-Check, Archiv-Logging nur nach Zustimmung
 ```
 
 `tests/check-tower-status-writes.php` ist der Regressionstest zur Regel „je Wert genau eine
@@ -69,7 +71,8 @@ Die eigentliche Verifikation ist eine Messung an echter Hardware (siehe oben).
   `LogMessage` und Push absetzen.
 - Timer laufen über `IPS_RequestAction($_IPS['TARGET'], 'TimerStatus'/'TimerMeasure', 0)`
   — dadurch prefix-unabhängig in der Basisklasse registrierbar. Weitere Idents:
-  `MeasureNow`, `TestPush`, `TxTest` (Diagnose: rohe Hex-Bytes über den Datenfluss).
+  `MeasureNow`, `TestPush`, `EnableArchiveLogging` (Knopf, Meldung per `echo`),
+  `TxTest` (Diagnose: rohe Hex-Bytes über den Datenfluss).
   Die Knöpfe in `form.json` rufen ausschließlich `IPS_RequestAction`.
 
 ### Ein weiteres Herstellermodul ergänzen
@@ -89,10 +92,15 @@ Die eigentliche Verifikation ist eine Messung an echter Hardware (siehe oben).
 
 ### Konventionen im Code
 
-- Variablen **nur über `ensureVariable()`** anlegen: setzt Presentations, aktiviert
-  Archiv-Logging für **neu angelegte** numerische Variablen und schaltet mit
-  `$counter = true` die Aggregation „Zähler" (für monoton steigende Werte wie die
-  BMU-Energien, damit Tages-/Monatswerte als Differenz statt als Mittel entstehen).
+- Variablen **nur über `ensureVariable()`** anlegen: setzt Presentations und loggt
+  **neu angelegte** numerische Variablen, aber nur, wenn der Benutzer `AutoLogging`
+  gesetzt hat (Vorgabe seit 1.5 `false`, Store-Review Punkt 11). Zähler (monoton
+  steigend wie die BMU-Energien) nennt die Kindklasse in `counterIdents()`; sie bekommen
+  die Aggregation „Zähler", damit Tages-/Monatswerte als Differenz entstehen. Für schon
+  bestehende Variablen gibt es den Knopf `EnableArchiveLogging`. **Kein
+  `IPS_ApplyChanges` auf die Archivinstanz** (Punkt 13): `AC_SetLoggingStatus` wirkt laut
+  Doku sofort; wird eine geloggte Variable auf „Zähler" umgestellt, folgt
+  `AC_ReAggregateVariable`. Regressionstest: `tests/check-archive-logging.php`.
 - Positionen: **1–9 = Gerätestammdaten** (BYD: 1/2 = BMU-/BMS-Firmware),
   10er = Statuswerte, 16/17 = Zellnummern, 20er = Zellspannung/-temperatur,
   `30 + Modul*10` = Werte je Modul, 80er = Angaben zur Messung, 90er = Hinweistexte.
