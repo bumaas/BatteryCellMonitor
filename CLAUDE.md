@@ -26,13 +26,14 @@ genauso laufen (`php` = `C:\php\php`):
 php -l libs/CellMonitorBase.php && php -l BYDCellMonitor/module.php \
   && php -l MarstekCellMonitor/module.php && php -l tests/check_locale.php \
   && php -l tests/check-tower-status-writes.php && php -l tests/check-getbuffer-false.php \
-  && php -l tests/check-archive-logging.php
+  && php -l tests/check-archive-logging.php && php -l tests/check-instance-status.php
 find . -name '*.json' -not -path './.git/*' -print0 |
   xargs -0 -n1 php -r 'json_decode(file_get_contents($argv[1]), false, 512, JSON_THROW_ON_ERROR);' --
 php tests/check_locale.php          # Übersetzungen, Exit-Code 1 bei Lücken
 php tests/check-tower-status-writes.php   # Laufzeit-Check, Mitschnitte in tests/fixtures/
 php tests/check-getbuffer-false.php       # Laufzeit-Check, GetBuffer() === false am Empfangspuffer
 php tests/check-archive-logging.php       # Laufzeit-Check, Archiv-Logging nur nach Zustimmung
+php tests/check-instance-status.php       # Laufzeit-Check, Instanzstatus 201/202/203
 ```
 
 `tests/check-tower-status-writes.php` ist der Regressionstest zur Regel „je Wert genau eine
@@ -69,6 +70,18 @@ Die eigentliche Verifikation ist eine Messung an echter Hardware (siehe oben).
   + `readModuleTemperatures()` → `processCellVoltages()`, das alles Weitere erledigt:
   Modulvariablen anlegen und füllen, Schwellwerte prüfen, `LastAlert` schreiben,
   `LogMessage` und Push absetzen.
+- **Instanzstatus** (seit 1.5, Store-Review Punkt 3): 201 kein Client Socket, 202 Socket
+  nicht verbunden, 203 Gerät antwortet nicht. 201/202 setzt `followParent()`, das in
+  `ApplyChanges` (erst ab `KR_READY`, sonst nach `IPS_KERNELSTARTED`), bei `FM_CONNECT`/
+  `FM_DISCONNECT` und bei `IM_CHANGESTATUS` des aktuellen Sockets läuft (Muster aus
+  Ambientika; der alte Socket wird abgemeldet). 203 entsteht erst nach **drei** Abfragen in
+  Folge ganz ohne gültige Antwort (`beginDialog()`/`endDialog()`, Merker in den
+  Transaktionen, Zähler im Buffer `SilentDialogs`): Eine Teilantwort zählt als erreichbar,
+  weil der Turm-Handshake an Mehrturm-Anlagen regelmäßig scheitert. War die Strecke belegt
+  und wurde nichts gesendet, bleibt der Status. Live am nuc geprüft (Socket #21399
+  geschlossen → 202 ohne Abfrage, geöffnet → 102). Einen Code für „BMS-Index ungültig“
+  gibt es bewusst nicht: Dafür fehlt ein echter Mitschnitt der `0x4000`-Antwort.
+  Regressionstest: `tests/check-instance-status.php`.
 - Timer laufen über `IPS_RequestAction($_IPS['TARGET'], 'TimerStatus'/'TimerMeasure', 0)`
   — dadurch prefix-unabhängig in der Basisklasse registrierbar. Weitere Idents:
   `MeasureNow`, `TestPush`, `EnableArchiveLogging` (Knopf, Meldung per `echo`),

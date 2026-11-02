@@ -19,6 +19,7 @@ jobs:
           php -l tests/check-tower-status-writes.php
           php -l tests/check-getbuffer-false.php
           php -l tests/check-archive-logging.php
+          php -l tests/check-instance-status.php
       - name: JSON-Validität
         run: |
           find . -name '*.json' -not -path './.git/*' -print0 |
@@ -30,6 +31,7 @@ jobs:
           php tests/check-tower-status-writes.php
           php tests/check-getbuffer-false.php
           php tests/check-archive-logging.php
+          php tests/check-instance-status.php
 
       - name: MCP-Tauglichkeit (statische Regeln, bumaas/symcon-mcp-check)
         uses: bumaas/symcon-mcp-check@v1

@@ -215,6 +215,15 @@ Richtung, und einzelne Zellen erreichten am Ladeschluss bis zu 3646 mV.
 
 ## Fehlersuche
 
+Der Status der Instanz (oben im Konfigurationsformular) nennt die häufigsten Ursachen
+selbst:
+
+| Status | Bedeutung |
+|---|---|
+| Kein Client Socket zugewiesen | Die Instanz hängt an keinem Client Socket. Über das Zahnrad oben einen auswählen oder anlegen. |
+| Client Socket ist nicht verbunden | Der Socket ist geschlossen oder erreicht die Gegenstelle nicht, Host und Port prüfen. Die Instanz folgt dem Socket sofort, sobald er wieder verbunden ist. |
+| Gerät antwortet nicht | Drei Abfragen in Folge blieben ohne Antwort, obwohl der Socket verbunden ist. Meist stimmt der Port oder die Geräte-ID nicht, oder ein zweiter ModBus-Client belegt die BCU. Mit der nächsten Antwort steht die Instanz wieder auf Aktiv. |
+
 - **Keine Werte / Timeout:** Debug-Fenster der Instanz öffnen. „Timeout - keine
   Antwort vom Gerät" bei offenem Socket deutet auf das falsche Ziel (BCU nicht
   im Heimnetz) oder einen zweiten Abnehmer am selben Socket.

@@ -45,10 +45,20 @@ abstract class CellMonitorBase extends IPSModuleStrict
     protected const string PROP_AUTOLOG         = 'AutoLogging';      // neue Variablen im Archiv protokollieren (nur auf Wunsch)
     protected const string PROP_KEEPRAW         = 'KeepRawData';      // Rohdaten der letzten Messung als JSON ablegen
 
+    // eigene Statuscodes, beschriftet im Bereich "status" beider form.json
+    protected const int STATUS_NO_PARENT     = 201; // kein Client Socket zugewiesen
+    protected const int STATUS_PARENT_CLOSED = 202; // Client Socket nicht verbunden
+    protected const int STATUS_NO_RESPONSE   = 203; // Gerät antwortet nicht
+    private const int SILENT_DIALOGS_FOR_ERROR = 3; // so viele stumme Abfragen in Folge bis 203
+
     // Attribute
     private const string ATTR_LASTAUTO = 'LastAutoMeasure';
     private const string ATTR_LASTWARN = 'LastWarnPush';
     private const string ATTR_LASTCRIT = 'LastCritPush';
+
+    /** Laufzeit-Merker einer Abfrage: wurde etwas gesendet, kam irgendeine gültige Antwort? */
+    private bool $dialogTried    = false;
+    private bool $answerReceived = false;
 
     /**
      * Verbindet die Instanz mit einem Client Socket (erzeugt ihn bei Bedarf).
@@ -139,6 +149,35 @@ abstract class CellMonitorBase extends IPSModuleStrict
 
         $this->SetTimerInterval('StatusPoll', $this->ReadPropertyInteger(self::PROP_STATUSINTERVAL) * 1000);
         $this->SetTimerInterval('CellMeasure', $this->ReadPropertyInteger(self::PROP_MEASUREINTERVAL) * 60000);
+
+        // Der Status folgt dem Client Socket sofort, nicht erst mit der nächsten Abfrage.
+        $this->RegisterMessage($this->InstanceID, FM_CONNECT);
+        $this->RegisterMessage($this->InstanceID, FM_DISCONNECT);
+        $this->registerParent();
+        if (IPS_GetKernelRunlevel() !== KR_READY) {
+            $this->RegisterMessage(0, IPS_KERNELSTARTED);
+            return;
+        }
+        $this->followParent();
+    }
+
+    public function MessageSink(int $TimeStamp, int $SenderID, int $Message, array $Data): void
+    {
+        switch ($Message) {
+            case IPS_KERNELSTARTED:
+                $this->followParent();
+                break;
+            case FM_CONNECT:
+            case FM_DISCONNECT:
+                $this->registerParent();
+                $this->followParent();
+                break;
+            case IM_CHANGESTATUS:
+                if ($SenderID === IPS_GetInstance($this->InstanceID)['ConnectionID']) {
+                    $this->followParent();
+                }
+                break;
+        }
     }
 
     public function RequestAction(string $ident, mixed $value): void
@@ -181,7 +220,9 @@ abstract class CellMonitorBase extends IPSModuleStrict
         if (!$this->parentVerbunden()) {
             return false;
         }
+        $this->beginDialog();
         $soc = $this->readStatusValues();
+        $this->endDialog();
         if ($soc === null) {
             return false;
         }
@@ -195,7 +236,9 @@ abstract class CellMonitorBase extends IPSModuleStrict
         if (!$this->parentVerbunden()) {
             return false;
         }
+        $this->beginDialog();
         $cellsByModule = $this->readCellVoltages();
+        $this->endDialog();
         if ($cellsByModule === null) {
             return false;
         }
@@ -535,6 +578,7 @@ abstract class CellMonitorBase extends IPSModuleStrict
         $tid = $this->nextTransactionID();
         $frame = pack('nnnC', $tid, 0, strlen($pdu) + 1, $this->ReadPropertyInteger(self::PROP_UNITID)) . $pdu;
 
+        $this->dialogTried = true;
         $this->SetBuffer('RxBuffer', '');
         $this->SendDataToParent(json_encode([
             'DataID' => self::GUID_DATA_TO_PARENT,
@@ -554,6 +598,7 @@ abstract class CellMonitorBase extends IPSModuleStrict
                 $rx         = substr($rx, 6 + $header['len']);
                 $this->SetBuffer('RxBuffer', base64_encode($rx));
                 if ($header['tid'] === $tid) {
+                    $this->answerReceived = true; // auch eine ModBus-Ausnahme ist eine Antwort
                     return substr($unitAndPdu, 1);
                 }
                 // Antwort einer anderen Instanz am selben Socket - überspringen
@@ -574,6 +619,7 @@ abstract class CellMonitorBase extends IPSModuleStrict
         $frame = chr($unit) . $pdu;
         $frame .= pack('v', self::crc16($frame));
 
+        $this->dialogTried = true;
         $this->SetBuffer('RxBuffer', '');
         $this->SendDataToParent(json_encode([
             'DataID' => self::GUID_DATA_TO_PARENT,
@@ -597,6 +643,7 @@ abstract class CellMonitorBase extends IPSModuleStrict
             if (ord($frameIn[0]) !== $unit) {
                 continue; // fremde Unit-ID - überspringen
             }
+            $this->answerReceived = true; // auch eine ModBus-Ausnahme ist eine Antwort
             return substr($frameIn, 1, -2);
         }
         $this->SendDebug(__FUNCTION__, 'Timeout - keine Antwort vom Gerät', 0);
@@ -667,29 +714,93 @@ abstract class CellMonitorBase extends IPSModuleStrict
     // -- Variablenverwaltung -------------------------------------------------
 
     /**
-     * Ist der Client Socket wirklich verbunden? `HasActiveParent()` allein sagt nur, dass ein
-     * aktiver Parent existiert - nach einem Modul-Update oder wenn die Gegenstelle die
-     * Verbindung getrennt hat, steht er aber auf 200/201. Dann wird nicht gesendet: Symcon
-     * verbindet von sich aus neu, und die nächste Abfrage läuft wieder sauber durch.
+     * Ist der Client Socket wirklich verbunden? Nach einem Modul-Update oder wenn die
+     * Gegenstelle die Verbindung getrennt hat, steht er auf 200/201. Dann wird nicht gesendet:
+     * Symcon verbindet von sich aus neu, und die nächste Abfrage läuft wieder sauber durch.
      */
     protected function parentVerbunden(): bool
     {
-        if (!$this->HasActiveParent()) {
-            $this->SendDebug('Verbindung', 'Kein aktiver Client Socket - Abfrage übersprungen', 0);
+        if ($this->followParent()) {
+            return true;
+        }
+        $this->SendDebug('Verbindung', 'Client Socket fehlt oder ist nicht verbunden - Abfrage übersprungen', 0);
+        return false;
+    }
+
+    /** Für Statuswechsel genau des aktuellen Client Sockets anmelden, frühere abmelden. */
+    private function registerParent(): void
+    {
+        $parentID = IPS_GetInstance($this->InstanceID)['ConnectionID'];
+        foreach ($this->GetMessageList() as $senderID => $messages) {
+            if ($senderID !== $parentID && in_array(IM_CHANGESTATUS, $messages, true)) {
+                $this->UnregisterMessage($senderID, IM_CHANGESTATUS);
+            }
+        }
+        if ($parentID > 0) {
+            $this->RegisterMessage($parentID, IM_CHANGESTATUS);
+        }
+    }
+
+    /**
+     * Eigenen Status an den Client Socket anpassen: 201 ohne Socket, 202 solange er nicht
+     * verbunden ist. Ist er verbunden, hebt das nur 201/202 auf; ob das Gerät antwortet (203),
+     * entscheidet die nächste Abfrage.
+     *
+     * @return bool true, wenn der Socket verbunden ist
+     */
+    private function followParent(): bool
+    {
+        $parentID = IPS_GetInstance($this->InstanceID)['ConnectionID'];
+        if ($parentID <= 0) {
+            $this->changeStatus(self::STATUS_NO_PARENT);
             return false;
         }
-        $parent = IPS_GetInstance($this->InstanceID)['ConnectionID'];
-        if ($parent <= 0) {
+        if (IPS_GetInstance($parentID)['InstanceStatus'] !== IS_ACTIVE) {
+            $this->changeStatus(self::STATUS_PARENT_CLOSED);
             return false;
         }
-        $status = IPS_GetInstance($parent)['InstanceStatus'];
-        if ($status !== IS_ACTIVE) {
-            $this->SendDebug('Verbindung', sprintf(
-                'Client Socket ist nicht verbunden (Status %d) - Abfrage übersprungen', $status
-            ), 0);
-            return false;
+        if (in_array($this->GetStatus(), [self::STATUS_NO_PARENT, self::STATUS_PARENT_CLOSED], true)) {
+            $this->changeStatus(IS_ACTIVE);
         }
         return true;
+    }
+
+    private function beginDialog(): void
+    {
+        $this->dialogTried    = false;
+        $this->answerReceived = false;
+    }
+
+    /**
+     * Nach einer Abfrage: Jede gültige Antwort, auch eine Teilantwort, zählt als erreichbar.
+     * Erst mehrere stumme Abfragen in Folge setzen 203 - an Mehrturm-Anlagen scheitert der
+     * Handshake im Betrieb regelmäßig, die BCU bedient nur einen ModBus-Client. Wurde gar
+     * nichts gesendet (ModBus-Strecke belegt), bleibt alles, wie es ist.
+     */
+    private function endDialog(): void
+    {
+        if (!$this->dialogTried) {
+            return;
+        }
+        if ($this->answerReceived) {
+            $this->SetBuffer('SilentDialogs', '0');
+            if ($this->GetStatus() === self::STATUS_NO_RESPONSE) {
+                $this->changeStatus(IS_ACTIVE);
+            }
+            return;
+        }
+        $silent = (int) $this->getBufferString('SilentDialogs') + 1;
+        $this->SetBuffer('SilentDialogs', (string) $silent);
+        if ($silent >= self::SILENT_DIALOGS_FOR_ERROR) {
+            $this->changeStatus(self::STATUS_NO_RESPONSE);
+        }
+    }
+
+    private function changeStatus(int $status): void
+    {
+        if ($this->GetStatus() !== $status) {
+            $this->SetStatus($status);
+        }
     }
 
     /**

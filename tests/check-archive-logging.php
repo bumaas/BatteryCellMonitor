@@ -37,6 +37,11 @@ foreach ([
     'VARIABLETYPE_STRING'                      => 3,
     'IS_ACTIVE'                                => 102,
     'KL_WARNING'                               => 10204,
+    'KR_READY'                                 => 10103,
+    'IPS_KERNELSTARTED'                        => 10001,
+    'IM_CHANGESTATUS'                          => 10505,
+    'FM_CONNECT'                               => 11101,
+    'FM_DISCONNECT'                            => 11102,
     'VARIABLE_PRESENTATION_VALUE_PRESENTATION' => '{3319437D-7CDE-699D-750A-3C6A3841FA75}',
     'VARIABLE_PRESENTATION_DATE_TIME'          => '{497C4845-27FA-6E4F-AE37-5D951D3BDBF9}',
 ] as $name => $wert) {
@@ -89,6 +94,17 @@ final class Kernel
 function IPS_GetInstanceListByModuleID(string $guid): array
 {
     return ($guid === GUID_ARCHIV && Kernel::$archivVorhanden) ? [ARCHIV_ID] : [];
+}
+
+/** Instanz ohne Client Socket; der Status spielt hier keine Rolle (siehe check-instance-status.php). */
+function IPS_GetInstance(int $id): array
+{
+    return ['InstanceID' => $id, 'ConnectionID' => 0, 'InstanceStatus' => 102];
+}
+
+function IPS_GetKernelRunlevel(): int
+{
+    return KR_READY;
 }
 
 function IPS_ApplyChanges(int $id): bool
@@ -157,6 +173,18 @@ abstract class IPSModuleStrict
     public function Create(): void {}
 
     public function ApplyChanges(): void {}
+
+    public function MessageSink(int $TimeStamp, int $SenderID, int $Message, array $Data): void {}
+
+    public function RegisterMessage(int $sender, int $msg): bool { return true; }
+
+    public function UnregisterMessage(int $sender, int $msg): bool { return true; }
+
+    public function GetMessageList(): array { return []; }
+
+    public function GetStatus(): int { return 102; }
+
+    public function SetStatus(int $status): bool { return true; }
 
     public function RegisterPropertyInteger(string $ident, int $vorgabe): void
     {

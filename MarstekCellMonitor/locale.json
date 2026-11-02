@@ -68,7 +68,11 @@
             "K": "K",
             "Enable archive logging for all variables": "Archiv-Logging für alle Variablen einschalten",
             "No archive instance found - nothing changed.": "Keine Archivinstanz gefunden, nichts geändert.",
-            "Archive logging: %1$d of %2$d variables changed, the others were already logged.": "Archiv-Logging: %1$d von %2$d Variablen geändert, die übrigen wurden schon geloggt."
+            "Archive logging: %1$d of %2$d variables changed, the others were already logged.": "Archiv-Logging: %1$d von %2$d Variablen geändert, die übrigen wurden schon geloggt.",
+            "Active": "Aktiv",
+            "No Client Socket assigned": "Kein Client Socket zugewiesen",
+            "Client Socket is not connected, check host and port": "Client Socket ist nicht verbunden, Host und Port prüfen",
+            "Device does not respond, check port, unit ID and other ModBus clients": "Gerät antwortet nicht, Port, Geräte-ID und weitere ModBus-Clients prüfen"
         }
     }
 }
