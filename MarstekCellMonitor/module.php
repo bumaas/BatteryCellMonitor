@@ -7,10 +7,12 @@ require_once __DIR__ . '/../libs/CellMonitorBase.php';
 /*
  * Marstek Venus E (v3) — liest Zellspannungen und Statuswerte per ModBus-TCP.
  *
- * ACHTUNG: Noch ungetestet (vorbereitet 08/2026, Registerkarte nach
- * ViperRNMC/marstek_venus_modbus, Datei registers/e_v3.yaml). Die Venus E v3
- * ist direkt per Ethernet erreichbar; ältere Venus E brauchen eine
- * RS485-zu-Ethernet-Bridge im ModBus-TCP-Modus (z. B. Elfin EW11, USR DR134).
+ * Registerkarte nach ViperRNMC/marstek_venus_modbus (registers/e_v3.yaml), am
+ * 28.08.2026 an einer Venus E 3.0 erprobt: Werte decken sich mit einer
+ * unabhängigen Erfassung derselben Batterie (siehe CLAUDE.md, Abschnitt Marstek).
+ * Die Venus E v3 ist direkt über das Netz erreichbar (Port 5200); ältere Venus E
+ * brauchen eine RS485-zu-Ethernet-Bridge im ModBus-TCP-Modus (z. B. Elfin EW11,
+ * USR DR134), dort Port 502.
  *
  * Anders als bei BYD liegen alle Werte dauerhaft in Registern — kein Handshake,
  * kein wanderndes Fenster. Ein Pack mit 16 Zellen (LiFePO4, 51,2 V).

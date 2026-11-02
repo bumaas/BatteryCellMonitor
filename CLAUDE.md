@@ -227,6 +227,8 @@ SOC 40 vs. 40,4 %, 53,05 vs. 53,04 V, Zellen 3,318/3,314 vs. 3,316/3,313 V, Delt
 Zyklen 87 = 87. **Abweichung nur beim Batteriestrom** (6,9 A gegen 0,6 A): Aus
 305–332 W bei 53 V folgen rund 6 A — das Modul liegt richtig, die dortige Erfassung
 skaliert Register 30101 um den Faktor 10 zu klein.
+Seit 1.5 build 37 sagt das Formular nicht mehr „noch nicht erprobt“, sondern nennt die
+Einrichtung (Port 5200, Statusintervall höchstens 25 s, Bridge für ältere Venus E).
 
 
 **Port 5200, nicht 502** (Fund 28.08.2026 an einer Venus E 3.0 einer zweiten Anlage,
