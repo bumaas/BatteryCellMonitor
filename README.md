@@ -62,10 +62,10 @@ https://github.com/bumaas/BatteryCellMonitor.git
      Geräts; auf Port 502 antwortet zwar auch ein ModBus-Dienst, dort sind die
      Register aber nicht erreichbar). Ältere Venus E über eine
      RS485-zu-Ethernet-Bridge im ModBus-TCP-Modus (z. B. Elfin EW11), dort Port 502.
-     **Statusintervall auf höchstens 25 s stellen:** Die Venus trennt die Verbindung
-     nach 30 s ohne Verkehr, und Symcon verbindet dann bei jeder Abfrage neu — das
-     füllt das Logbuch mit „Wiederverbinden erfolgreich". Mit einem Intervall unter
-     dem Timeout bleibt die Verbindung stehen.
+     **Das Statusintervall steht hier ab Werk auf 25 s und sollte nicht länger
+     werden.** Die Venus trennt die Verbindung nach 30 s ohne Verkehr. Bei einem
+     längeren Intervall verbindet Symcon vor jeder Abfrage neu und füllt das Logbuch
+     mit „Wiederverbinden erfolgreich".
 3. Bei BYD den **BMS-Index** wählen (Turm 1, 2, …). Für einen zweiten Turm eine
    zweite Instanz **am selben Client Socket** anlegen (BMS-Index 2) — die
    Zugriffe werden automatisch serialisiert.
@@ -92,7 +92,7 @@ zwei Abnehmer am selben Socket stören sich gegenseitig.
 | Zellen je Modul (nur BYD) | 16 | HVM: 16, HVS: 32 |
 | ModBus-Geräte-ID | 1 | Unit-ID im ModBus-Frame |
 | Zeitlimit | 2000 ms | Antwort-Timeout je Anfrage |
-| Status-Abfrageintervall | 60 s | Kurzabfrage (SOC, Strom, …); 0 = aus |
+| Status-Abfrageintervall | 60 s (Marstek 25 s) | Kurzabfrage (SOC, Strom, …); 0 = aus |
 | Zellmess-Intervall | 60 min | zyklische Komplettmessung; 0 = aus |
 | Messen ab SOC von / Messen bis SOC von | 99 % / 5 % | zusätzliche Messung am Lade-/Entladeschluss |
 | Mindestabstand SOC-ausgelöster Messungen | 7200 s | Sperrzeit für die SOC-getriggerten Messungen |
@@ -224,7 +224,7 @@ selbst:
 |---|---|
 | Kein Client Socket zugewiesen | Die Instanz hängt an keinem Client Socket. Über das Zahnrad oben einen auswählen oder anlegen. |
 | Client Socket ist nicht verbunden | Der Socket ist geschlossen oder erreicht die Gegenstelle nicht, Host und Port prüfen. Die Instanz folgt dem Socket sofort, sobald er wieder verbunden ist. |
-| Gerät antwortet nicht | Drei Abfragen in Folge blieben ohne Antwort, obwohl der Socket verbunden ist. Meist stimmt der Port oder die Geräte-ID nicht, oder ein zweiter ModBus-Client belegt die BCU. Mit der nächsten Antwort steht die Instanz wieder auf Aktiv. |
+| Gerät antwortet nicht | Drei Abfragen in Folge blieben ohne Antwort, obwohl der Socket verbunden ist. Meist stimmt der Port oder die Geräte-ID nicht, oder ein zweiter ModBus-Client belegt die BCU. Mit der nächsten Antwort steht die Instanz wieder auf Aktiv, ebenso nach dem Speichern der Einstellungen oder wenn sich der Socket neu verbindet; gezählt wird dann von vorn. |
 
 - **Keine Werte / Timeout:** Debug-Fenster der Instanz öffnen. „Timeout - keine
   Antwort vom Gerät" bei offenem Socket deutet auf das falsche Ziel (BCU nicht

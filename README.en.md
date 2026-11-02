@@ -62,10 +62,10 @@ https://github.com/bumaas/BatteryCellMonitor.git
      the device; port 502 also answers as a ModBus service, but the registers
      are not reachable there). Older Venus E models via an RS485 to Ethernet
      bridge in ModBus TCP mode (e.g. Elfin EW11), port 502 there.
-     **Set the status poll interval to 25 s at most:** the Venus drops the
-     connection after 30 s without traffic, and Symcon then reconnects on every
-     poll, which fills the log with "reconnect successful". With an interval
-     below the timeout the connection stays up.
+     **The status poll interval defaults to 25 s here and should not be raised.**
+     The Venus drops the connection after 30 s without traffic. With a longer
+     interval Symcon reconnects before every poll and fills the log with
+     "reconnect successful".
 3. For BYD choose the **BMS index (tower)** (tower 1, 2, …). For a second tower,
    create a second instance **on the same Client Socket** (BMS index 2); access
    is serialized automatically.
@@ -93,7 +93,7 @@ itself, and two consumers on the same socket get in each other's way.
 | Cells per module (BYD only) | 16 | HVM: 16, HVS: 32 |
 | ModBus unit ID | 1 | unit ID in the ModBus frame |
 | Timeout | 2000 ms | response timeout per request |
-| Status poll interval (0 = off) | 60 s | short poll (SOC, current, …) |
+| Status poll interval (0 = off) | 60 s (Marstek 25 s) | short poll (SOC, current, …) |
 | Cell measurement interval (0 = off) | 60 min | cyclic full measurement |
 | Measure when SOC at or above / Measure when SOC at or below | 99 % / 5 % | extra measurement at the end of charge/discharge |
 | Minimum gap between SOC-triggered measurements | 7200 s | lockout time for the SOC-triggered measurements |
@@ -223,7 +223,7 @@ causes itself:
 |---|---|
 | No Client Socket assigned | The instance is not attached to a Client Socket. Pick or create one via the gear icon at the top. |
 | Client Socket is not connected, check host and port | The socket is closed or cannot reach the device; check host and port. The instance follows the socket as soon as it is connected again. |
-| Device does not respond, check port, unit ID and other ModBus clients | Three polls in a row got no answer although the socket is connected. Usually the port or the unit ID is wrong, or a second ModBus client is occupying the BCU. With the next answer the instance is back to active. |
+| Device does not respond, check port, unit ID and other ModBus clients | Three polls in a row got no answer although the socket is connected. Usually the port or the unit ID is wrong, or a second ModBus client is occupying the BCU. With the next answer the instance is back to active, and also after saving the settings or when the socket reconnects; counting then starts again. |
 
 - **No values / timeout:** open the debug window of the instance. "Timeout - keine
   Antwort vom Gerät" (no answer from the device) with an open socket points to the

@@ -35,6 +35,15 @@ class MarstekCellMonitor extends CellMonitorBase
     private const int REG_CELLV_MAX     = 37007; // mV
     private const int REG_CELLV_MIN     = 37008; // mV
 
+    /**
+     * Die Venus trennt eine Verbindung nach 30 s ohne Verkehr. Mit einem längeren Intervall
+     * träfe jede Abfrage auf eine tote Verbindung, der Socket verbände jedes Mal neu.
+     */
+    protected function defaultStatusInterval(): int
+    {
+        return 25;
+    }
+
     protected function registerVendorVariables(): void
     {
         $this->ensureVariable('Power', $this->Translate('Battery power'), VARIABLETYPE_INTEGER, [

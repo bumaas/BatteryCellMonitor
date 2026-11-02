@@ -23,6 +23,11 @@ declare(strict_types=1);
  *    vorher schon mit anderem Typ geloggt wurde (Doku AC_SetAggregationType:
  *    „Im Anschluss ist eine Reaggregation der Variable nötig“).
  *  - Ohne Archivinstanz legt das Modul keine an und bricht sauber ab.
+ *  - Erst Logging, dann Aggregationstyp (Code-Review 02.11.2026, Befund 3). Build 34 drehte
+ *    die Reihenfolge um. Das Archiv lehnt AC_SetAggregationType für eine noch nicht
+ *    geloggte Variable aber ab: Am 02.11.2026 auf der Testbox (Linux) und am nuc
+ *    (Windows, Rust-Edition) gemessen, Rückgabe false, der Typ bleibt 0, auch nach dem
+ *    Einschalten des Loggings. Die Attrappe AC_SetAggregationType bildet genau das nach.
  *
  * Keine Fixture nötig: geprüft wird der Umgang mit dem Archiv, kein Geräteformat.
  *
@@ -149,8 +154,12 @@ function AC_GetAggregationType(int $archiv, int $var): int
     return Kernel::$aggregation[$var] ?? 0;
 }
 
+/** Wie das echte Archiv: für eine nicht geloggte Variable false, der Typ bleibt unverändert. */
 function AC_SetAggregationType(int $archiv, int $var, int $typ): bool
 {
+    if (!(Kernel::$logging[$var] ?? false)) {
+        return false;
+    }
     Kernel::$aggregation[$var] = $typ;
     return true;
 }

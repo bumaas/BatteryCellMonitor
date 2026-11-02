@@ -21,6 +21,14 @@ declare(strict_types=1);
  *  - Vor KR_READY wird nichts bewertet, sondern auf IPS_KERNELSTARTED gewartet.
  *  - Beide form.json führen die Codes im status-Bereich.
  *
+ * Nachgezogen nach dem Code-Review vom 02.11.2026:
+ *  - Befund 1: Nach ApplyChanges und nach jeder Nachricht zum Socket, bei der er verbunden
+ *    ist, wird neu bewertet (203 → 102, Zähler auf 0). Bis build 37 überlebten Zähler und
+ *    203 ein Wiederverbinden und das Speichern der Einstellungen.
+ *  - Befund 9: Der Zähler wird nur geschrieben, wenn er sich ändert.
+ *  - Befund 2: Marstek fragt ab Werk alle 25 s ab (Idle-Timeout der Venus 30 s), BYD bleibt
+ *    bei 60 s.
+ *
  * Die Antwort des Geräts ist der echte Statusblock-Mitschnitt aus
  * tests/fixtures/statusblock_hvm.json, als RTU-Frame verpackt (Unit 1, FC03, CRC16).
  *
@@ -183,7 +191,14 @@ abstract class IPSModuleStrict
 
     public function RegisterVariableString(string $i, string $n, array|string $p = '', int $pos = 0): void {}
 
-    public function SetBuffer(string $ident, string $wert): void { $this->buffers[$ident] = $wert; }
+    /** @var array<string, int> Schreibvorgänge je Buffer */
+    public array $bufferSchreibungen = [];
+
+    public function SetBuffer(string $ident, string $wert): void
+    {
+        $this->buffers[$ident] = $wert;
+        $this->bufferSchreibungen[$ident] = ($this->bufferSchreibungen[$ident] ?? 0) + 1;
+    }
 
     public function GetBuffer(string $ident): string|false { return $this->buffers[$ident] ?? ''; }
 
@@ -346,6 +361,77 @@ pruefe('drei stumme Abfragen: 203', 203, $mst->GetStatus());
 Kernel::$instanzen[SOCKET]['InstanceStatus'] = 200;
 $mst->MessageSink(1, SOCKET, IM_CHANGESTATUS, [200, 0]);
 pruefe('Socket fällt aus: 202 geht vor', 202, $mst->GetStatus());
+
+// -- Fall 2b: Neubewertung nach Wiederverbinden und Speichern (Code-Review, Befund 1) --
+
+echo "== 203, dann Socket getrennt und wieder verbunden ==\n";
+$m = neuesBYD(SOCKET);
+$m->ApplyChanges();
+$m->PollStatus();
+$m->PollStatus();
+$m->PollStatus();
+pruefe('Ausgang: 203', 203, $m->GetStatus());
+Kernel::$instanzen[SOCKET]['InstanceStatus'] = 200;
+$m->MessageSink(1, SOCKET, IM_CHANGESTATUS, [200, 0]);
+Kernel::$instanzen[SOCKET]['InstanceStatus'] = IS_ACTIVE;
+$m->MessageSink(2, SOCKET, IM_CHANGESTATUS, [IS_ACTIVE, 0]);
+pruefe('nach dem Wiederverbinden 102', IS_ACTIVE, $m->GetStatus());
+$m->PollStatus();
+pruefe('eine stumme Abfrage danach bleibt 102 (Zähler neu)', IS_ACTIVE, $m->GetStatus());
+$m->PollStatus();
+pruefe('zwei stumme Abfragen danach bleiben 102', IS_ACTIVE, $m->GetStatus());
+$m->PollStatus();
+pruefe('erst die dritte setzt wieder 203', 203, $m->GetStatus());
+
+echo "== 203, dann speichert der Anwender (ApplyChanges) ==\n";
+$m = neuesBYD(SOCKET);
+$m->ApplyChanges();
+$m->PollStatus();
+$m->PollStatus();
+$m->PollStatus();
+pruefe('Ausgang: 203', 203, $m->GetStatus());
+$m->ApplyChanges();
+pruefe('ApplyChanges bewertet neu: 102', IS_ACTIVE, $m->GetStatus());
+$m->PollStatus();
+pruefe('eine stumme Abfrage danach bleibt 102', IS_ACTIVE, $m->GetStatus());
+
+echo "== 203 bleibt über weitere Abfragen stehen ==\n";
+$m->PollStatus();
+$m->PollStatus();
+pruefe('drei stumme Abfragen: 203', 203, $m->GetStatus());
+$m->PollStatus();
+pruefe('die nächste stumme Abfrage hebt 203 nicht auf', 203, $m->GetStatus());
+
+// -- Fall 2c: Zähler nur schreiben, wenn er sich ändert (Code-Review, Befund 9) --
+
+echo "== erfolgreiche Abfragen schreiben den Zähler nicht ==\n";
+$m = neuesBYD(SOCKET);
+$m->ApplyChanges();
+$m->antworten = statusblockAntwort();
+$m->bufferSchreibungen = [];
+$m->PollStatus();
+$m->PollStatus();
+$m->PollStatus();
+pruefe('drei Antworten: SilentDialogs nie geschrieben', 0, $m->bufferSchreibungen['SilentDialogs'] ?? 0);
+$m->antworten = [];
+$m->PollStatus();
+$m->antworten = statusblockAntwort();
+$m->bufferSchreibungen = [];
+$m->PollStatus();
+pruefe('nach einer stummen Abfrage setzt die Antwort den Zähler einmal zurück', 1, $m->bufferSchreibungen['SilentDialogs'] ?? 0);
+$m->PollStatus();
+pruefe('danach keine weiteren Schreibvorgänge', 1, $m->bufferSchreibungen['SilentDialogs'] ?? 0);
+
+// -- Fall 2d: Vorgabe des Statusintervalls (Code-Review, Befund 2) ------------
+
+echo "== Statusintervall ab Werk ==\n";
+Kernel::zuruecksetzen(SOCKET);
+$mst = new MarstekCellMonitor();
+$mst->Create();
+pruefe('Marstek: höchstens 25 s (Idle-Timeout der Venus 30 s)', true, $mst->ReadPropertyInteger('StatusInterval') <= 25);
+pruefe('Marstek: Abfrage bleibt eingeschaltet', true, $mst->ReadPropertyInteger('StatusInterval') > 0);
+$m = neuesBYD(SOCKET);
+pruefe('BYD: unverändert 60 s', 60, $m->ReadPropertyInteger('StatusInterval'));
 
 // -- Fall 3: Kernelstart -----------------------------------------------------
 

@@ -76,7 +76,7 @@ abstract class CellMonitorBase extends IPSModuleStrict
 
         $this->RegisterPropertyInteger(self::PROP_UNITID, 1);
         $this->RegisterPropertyInteger(self::PROP_TIMEOUT, 2000);
-        $this->RegisterPropertyInteger(self::PROP_STATUSINTERVAL, 60);
+        $this->RegisterPropertyInteger(self::PROP_STATUSINTERVAL, $this->defaultStatusInterval());
         $this->RegisterPropertyInteger(self::PROP_MEASUREINTERVAL, 60);
         $this->RegisterPropertyInteger(self::PROP_AUTOFULLSOC, 99);
         $this->RegisterPropertyInteger(self::PROP_AUTOEMPTYSOC, 5);
@@ -158,23 +158,23 @@ abstract class CellMonitorBase extends IPSModuleStrict
             $this->RegisterMessage(0, IPS_KERNELSTARTED);
             return;
         }
-        $this->followParent();
+        $this->followParent(true);
     }
 
     public function MessageSink(int $TimeStamp, int $SenderID, int $Message, array $Data): void
     {
         switch ($Message) {
             case IPS_KERNELSTARTED:
-                $this->followParent();
+                $this->followParent(true);
                 break;
             case FM_CONNECT:
             case FM_DISCONNECT:
                 $this->registerParent();
-                $this->followParent();
+                $this->followParent(true);
                 break;
             case IM_CHANGESTATUS:
                 if ($SenderID === IPS_GetInstance($this->InstanceID)['ConnectionID']) {
-                    $this->followParent();
+                    $this->followParent(true);
                 }
                 break;
         }
@@ -566,7 +566,12 @@ abstract class CellMonitorBase extends IPSModuleStrict
     /** Eine ModBus-Transaktion im Framing der Kindklasse. Rückgabe: Antwort-PDU ohne Unit-ID. */
     private function modbusTransaction(string $pdu): ?string
     {
-        return $this->useRtuFraming() ? $this->rtuTransaction($pdu) : $this->mbapTransaction($pdu);
+        $this->dialogTried = true;
+        $answer = $this->useRtuFraming() ? $this->rtuTransaction($pdu) : $this->mbapTransaction($pdu);
+        if ($answer !== null) {
+            $this->answerReceived = true; // auch eine ModBus-Ausnahme ist eine Antwort
+        }
+        return $answer;
     }
 
     /**
@@ -578,7 +583,6 @@ abstract class CellMonitorBase extends IPSModuleStrict
         $tid = $this->nextTransactionID();
         $frame = pack('nnnC', $tid, 0, strlen($pdu) + 1, $this->ReadPropertyInteger(self::PROP_UNITID)) . $pdu;
 
-        $this->dialogTried = true;
         $this->SetBuffer('RxBuffer', '');
         $this->SendDataToParent(json_encode([
             'DataID' => self::GUID_DATA_TO_PARENT,
@@ -598,7 +602,6 @@ abstract class CellMonitorBase extends IPSModuleStrict
                 $rx         = substr($rx, 6 + $header['len']);
                 $this->SetBuffer('RxBuffer', base64_encode($rx));
                 if ($header['tid'] === $tid) {
-                    $this->answerReceived = true; // auch eine ModBus-Ausnahme ist eine Antwort
                     return substr($unitAndPdu, 1);
                 }
                 // Antwort einer anderen Instanz am selben Socket - überspringen
@@ -619,7 +622,6 @@ abstract class CellMonitorBase extends IPSModuleStrict
         $frame = chr($unit) . $pdu;
         $frame .= pack('v', self::crc16($frame));
 
-        $this->dialogTried = true;
         $this->SetBuffer('RxBuffer', '');
         $this->SendDataToParent(json_encode([
             'DataID' => self::GUID_DATA_TO_PARENT,
@@ -643,7 +645,6 @@ abstract class CellMonitorBase extends IPSModuleStrict
             if (ord($frameIn[0]) !== $unit) {
                 continue; // fremde Unit-ID - überspringen
             }
-            $this->answerReceived = true; // auch eine ModBus-Ausnahme ist eine Antwort
             return substr($frameIn, 1, -2);
         }
         $this->SendDebug(__FUNCTION__, 'Timeout - keine Antwort vom Gerät', 0);
@@ -743,12 +744,14 @@ abstract class CellMonitorBase extends IPSModuleStrict
 
     /**
      * Eigenen Status an den Client Socket anpassen: 201 ohne Socket, 202 solange er nicht
-     * verbunden ist. Ist er verbunden, hebt das nur 201/202 auf; ob das Gerät antwortet (203),
-     * entscheidet die nächste Abfrage.
+     * verbunden ist. Ist er (wieder) verbunden, beginnt die Bewertung des Geräts von vorn:
+     * Der Zähler stummer Abfragen geht auf 0, ob das Gerät antwortet (203), entscheiden die
+     * nächsten Abfragen. Dasselbe gilt mit $neuBewerten nach ApplyChanges und bei jeder
+     * Nachricht zum Socket; vor einer Abfrage (parentVerbunden) bleibt ein 203 dagegen stehen.
      *
      * @return bool true, wenn der Socket verbunden ist
      */
-    private function followParent(): bool
+    private function followParent(bool $neuBewerten = false): bool
     {
         $parentID = IPS_GetInstance($this->InstanceID)['ConnectionID'];
         if ($parentID <= 0) {
@@ -759,7 +762,8 @@ abstract class CellMonitorBase extends IPSModuleStrict
             $this->changeStatus(self::STATUS_PARENT_CLOSED);
             return false;
         }
-        if (in_array($this->GetStatus(), [self::STATUS_NO_PARENT, self::STATUS_PARENT_CLOSED], true)) {
+        if ($neuBewerten || in_array($this->GetStatus(), [self::STATUS_NO_PARENT, self::STATUS_PARENT_CLOSED], true)) {
+            $this->resetSilentDialogs();
             $this->changeStatus(IS_ACTIVE);
         }
         return true;
@@ -783,10 +787,9 @@ abstract class CellMonitorBase extends IPSModuleStrict
             return;
         }
         if ($this->answerReceived) {
-            $this->SetBuffer('SilentDialogs', '0');
-            if ($this->GetStatus() === self::STATUS_NO_RESPONSE) {
-                $this->changeStatus(IS_ACTIVE);
-            }
+            // Eine Abfrage läuft nur bei verbundenem Socket, der Status ist hier 102 oder 203.
+            $this->resetSilentDialogs();
+            $this->changeStatus(IS_ACTIVE);
             return;
         }
         $silent = (int) $this->getBufferString('SilentDialogs') + 1;
@@ -796,11 +799,24 @@ abstract class CellMonitorBase extends IPSModuleStrict
         }
     }
 
+    private function resetSilentDialogs(): void
+    {
+        if ((int) $this->getBufferString('SilentDialogs') !== 0) {
+            $this->SetBuffer('SilentDialogs', '0');
+        }
+    }
+
     private function changeStatus(int $status): void
     {
         if ($this->GetStatus() !== $status) {
             $this->SetStatus($status);
         }
+    }
+
+    /** Vorgabe des Status-Abfrageintervalls in Sekunden für neue Instanzen. */
+    protected function defaultStatusInterval(): int
+    {
+        return 60;
     }
 
     /**
@@ -875,8 +891,10 @@ abstract class CellMonitorBase extends IPSModuleStrict
     /**
      * Logging einschalten und bei Zählern die Aggregation setzen. Laut Doku wirkt
      * AC_SetLoggingStatus sofort, ein IPS_ApplyChanges auf das Archiv ist nicht nötig.
-     * Wird eine schon geloggte Variable auf "Zähler" umgestellt, verlangt die Doku zu
-     * AC_SetAggregationType eine Reaggregation.
+     * Die Reihenfolge zählt: Für eine nicht geloggte Variable lehnt das Archiv
+     * AC_SetAggregationType ab (Rückgabe false, Typ bleibt 0; gemessen am 02.11.2026 unter
+     * Linux und in der Rust-Edition). Wird eine schon geloggte Variable auf "Zähler"
+     * umgestellt, verlangt die Doku zu AC_SetAggregationType eine Reaggregation.
      *
      * @return bool true, wenn sich etwas geändert hat
      */
@@ -884,15 +902,15 @@ abstract class CellMonitorBase extends IPSModuleStrict
     {
         $changed   = false;
         $wasLogged = AC_GetLoggingStatus($archiveID, $varID);
+        if (!$wasLogged) {
+            AC_SetLoggingStatus($archiveID, $varID, true);
+            $changed = true;
+        }
         if ($counter && AC_GetAggregationType($archiveID, $varID) !== 1) {
             AC_SetAggregationType($archiveID, $varID, 1); // 1 = Zähler (Counter)
             if ($wasLogged) {
                 AC_ReAggregateVariable($archiveID, $varID);
             }
-            $changed = true;
-        }
-        if (!$wasLogged) {
-            AC_SetLoggingStatus($archiveID, $varID, true);
             $changed = true;
         }
         return $changed;

@@ -75,10 +75,13 @@ Die eigentliche Verifikation ist eine Messung an echter Hardware (siehe oben).
   `ApplyChanges` (erst ab `KR_READY`, sonst nach `IPS_KERNELSTARTED`), bei `FM_CONNECT`/
   `FM_DISCONNECT` und bei `IM_CHANGESTATUS` des aktuellen Sockets läuft (Muster aus
   Ambientika; der alte Socket wird abgemeldet). 203 entsteht erst nach **drei** Abfragen in
-  Folge ganz ohne gültige Antwort (`beginDialog()`/`endDialog()`, Merker in den
-  Transaktionen, Zähler im Buffer `SilentDialogs`): Eine Teilantwort zählt als erreichbar,
-  weil der Turm-Handshake an Mehrturm-Anlagen regelmäßig scheitert. War die Strecke belegt
-  und wurde nichts gesendet, bleibt der Status. Live am nuc geprüft (Socket #21399
+  Folge ganz ohne gültige Antwort (`beginDialog()`/`endDialog()`, Merker in
+  `modbusTransaction()`, Zähler im Buffer `SilentDialogs`): Eine Teilantwort zählt als
+  erreichbar, weil der Turm-Handshake an Mehrturm-Anlagen regelmäßig scheitert. War die
+  Strecke belegt und wurde nichts gesendet, bleibt der Status. `followParent(true)` (nach
+  `ApplyChanges` und bei jeder Nachricht zum Socket) bewertet neu: 203 → 102, Zähler auf 0.
+  Vor jeder Abfrage läuft es ohne Neubewertung (`parentVerbunden()`), sonst würde 203 nie
+  erreicht. Marstek fragt ab Werk alle 25 s ab (`defaultStatusInterval()`, Idle-Timeout). Live am nuc geprüft (Socket #21399
   geschlossen → 202 ohne Abfrage, geöffnet → 102). Einen Code für „BMS-Index ungültig“
   gibt es bewusst nicht: Dafür fehlt ein echter Mitschnitt der `0x4000`-Antwort.
   Regressionstest: `tests/check-instance-status.php`.
@@ -113,7 +116,10 @@ Die eigentliche Verifikation ist eine Messung an echter Hardware (siehe oben).
   bestehende Variablen gibt es den Knopf `EnableArchiveLogging`. **Kein
   `IPS_ApplyChanges` auf die Archivinstanz** (Punkt 13): `AC_SetLoggingStatus` wirkt laut
   Doku sofort; wird eine geloggte Variable auf „Zähler" umgestellt, folgt
-  `AC_ReAggregateVariable`. Regressionstest: `tests/check-archive-logging.php`.
+  `AC_ReAggregateVariable`. **Erst Logging, dann Aggregationstyp:** Für eine nicht
+  geloggte Variable liefert `AC_SetAggregationType` `false`, und der Typ bleibt 0, auch
+  nach dem Einschalten des Loggings (gemessen 02.11.2026 an Testbox und nuc; build 34 bis
+  37 hatten die Reihenfolge vertauscht). Regressionstest: `tests/check-archive-logging.php`.
 - Positionen: **1–9 = Gerätestammdaten** (BYD: 1/2 = BMU-/BMS-Firmware),
   10er = Statuswerte, 16/17 = Zellnummern, 20er = Zellspannung/-temperatur,
   `30 + Modul*10` = Werte je Modul, 80er = Angaben zur Messung, 90er = Hinweistexte.
