@@ -340,7 +340,10 @@ begründet sie nicht:
 - **`ConnectParent()` gibt es nicht mehr** (build 7): Der Client Socket wird über
   `GetCompatibleParents()` (`type: connect`) angeboten, nicht im `Create()` verbunden.
 - Nachrangig: Darstellungen
-  brauchen ≥ 8.0, typisierte Klassenkonstanten PHP ≥ 8.3 (ab 8.1 belegt).
+  brauchen ≥ 8.0, typisierte Klassenkonstanten PHP ≥ 8.3. **Unter 9.0 ist das auf allen
+  Plattformen erfüllt** (Store-Review Punkt 10, geprüft 02.11.2026): Die Migrationsseiten der Doku
+  nennen „Neu: PHP 8.3“ für 7.2 → 8.0 und „Neu: PHP 8.5“ für 8.1 → 9.0, ohne Plattformunterschied.
+  Gegenprobe an Neustadt (9.0, Linux) und nuc/Testbox (9.1): je PHP 8.5.12.
 - `VISU_PostNotification` ist per `function_exists` + `WFC_PushNotification`-
   Fallback abgesichert und daher nicht versionskritisch.
 
