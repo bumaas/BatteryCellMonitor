@@ -2,6 +2,8 @@
 
 [![Checks](https://github.com/bumaas/BatteryCellMonitor/actions/workflows/check.yml/badge.svg)](https://github.com/bumaas/BatteryCellMonitor/actions/workflows/check.yml)
 
+English version: [README.en.md](README.en.md)
+
 Symcon-Modulbibliothek zur **Überwachung der einzelnen Zellspannungen** von
 Heimspeicher-Batterien. Sichtbar werden Werte, die Wechselrichter und Portale
 verschweigen: einzelne Zellen, die am Ladeschluss davonlaufen oder am
@@ -265,5 +267,5 @@ selbst:
 
 ## Voraussetzungen
 
-- Symcon ab Version 9.0 (der IO-Datenfluss ist seit 9.0 hex-kodiert)
+- Symcon ab Version 9.0
 - Batterie im gleichen Netz erreichbar (keine Portfreigaben ins Internet!)
